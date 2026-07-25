@@ -1,38 +1,37 @@
 #!/usr/bin/env python3
-"""Extract C/C++ SOURCE= entries from a Visual C++ 6 .dsp project file."""
+"""Print compile-unit paths (one per line) from a VC6 .dsp, relative to the .dsp directory."""
 from __future__ import annotations
 
 import re
 import sys
+from pathlib import Path
+
+SOURCE_RE = re.compile(r"^SOURCE=\.\\(.+)$", re.IGNORECASE)
+EXTS = {".cpp", ".c", ".cc", ".cxx"}
 
 
 def main() -> int:
     if len(sys.argv) != 2:
         print(f"usage: {sys.argv[0]} <project.dsp>", file=sys.stderr)
         return 2
-
-    dsp_path = sys.argv[1]
-    source_re = re.compile(r"^SOURCE=(.+)$")
-    seen = set()
-
-    with open(dsp_path, "r", encoding="utf-8", errors="replace") as fh:
-        for raw in fh:
-            line = raw.strip()
-            match = source_re.match(line)
-            if not match:
-                continue
-            path = match.group(1).strip().strip('"').replace("\\", "/")
-            if path.startswith("./"):
-                path = path[2:]
-            lower = path.lower()
-            if not lower.endswith((".c", ".cc", ".cpp", ".cxx")):
-                continue
-            if path in seen:
-                continue
-            seen.add(path)
-            print(path)
+    dsp = Path(sys.argv[1]).resolve()
+    dsp_dir = dsp.parent
+    seen: set[str] = set()
+    for line in dsp.read_text(encoding="latin-1", errors="replace").splitlines():
+        m = SOURCE_RE.match(line.strip())
+        if not m:
+            continue
+        rel = m.group(1).replace("\\", "/")
+        if Path(rel).suffix.lower() not in EXTS:
+            continue
+        if rel in seen:
+            continue
+        seen.add(rel)
+        if not (dsp_dir / rel).is_file():
+            continue
+        print(rel)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

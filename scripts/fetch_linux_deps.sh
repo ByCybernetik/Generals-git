@@ -8,6 +8,14 @@ TP="$ROOT/third_party"
 
 mkdir -p "$DEPS" "$TP"
 
+if [[ -f "$ROOT/.gitmodules" ]]; then
+  echo "==> Initializing git submodules (imgui, Vulkan-Headers, VulkanMemoryAllocator)"
+  git -C "$ROOT" submodule update --init --depth 1 \
+    third_party/imgui \
+    third_party/Vulkan-Headers \
+    third_party/VulkanMemoryAllocator || true
+fi
+
 clone_or_update() {
   local url="$1" dest="$2" ref="${3:-}"
   if [[ -d "$dest/.git" ]]; then
@@ -24,17 +32,25 @@ clone_or_update() {
 
 echo "==> Cloning dependency sources into $DEPS"
 clone_or_update https://github.com/nothings/stb.git "$DEPS/stb"
-clone_or_update https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git "$DEPS/VulkanMemoryAllocator"
-clone_or_update https://github.com/ocornut/imgui.git "$DEPS/imgui"
 clone_or_update https://github.com/TheAssemblyArmada/liblzhl.git "$DEPS/liblzhl"
 clone_or_update https://github.com/ByCybernetik/CnC_Renegade-main.git "$DEPS/CnC_Renegade-main"
 clone_or_update https://github.com/ByCybernetik/CnC_Renegade-linux.git "$DEPS/CnC_Renegade-linux"
+if [[ ! -d "$TP/VulkanMemoryAllocator/.git" ]]; then
+  clone_or_update https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git "$DEPS/VulkanMemoryAllocator"
+fi
 
 echo "==> Linking third_party/"
 ln -sfn "$DEPS/stb" "$TP/stb"
-ln -sfn "$DEPS/imgui" "$TP/imgui"
 mkdir -p "$TP/vma"
-ln -sfn "$DEPS/VulkanMemoryAllocator/include" "$TP/vma/include"
+if [[ -d "$TP/VulkanMemoryAllocator/include" ]]; then
+  ln -sfn "../VulkanMemoryAllocator/include" "$TP/vma/include"
+else
+  ln -sfn "$DEPS/VulkanMemoryAllocator/include" "$TP/vma/include"
+fi
+if [[ ! -d "$TP/imgui/.git" ]]; then
+  clone_or_update https://github.com/ocornut/imgui.git "$DEPS/imgui"
+  ln -sfn "$DEPS/imgui" "$TP/imgui"
+fi
 ln -sfn "$DEPS/CnC_Renegade-main/third_party/dxsdk8" "$TP/dxsdk8" 2>/dev/null || true
 
 # D3D8/D3DX8 headers are vendored in third_party/d3d8_include (no external SDK required).

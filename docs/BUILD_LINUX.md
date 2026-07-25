@@ -6,6 +6,14 @@ System packages: `meson`, `ninja-build`, `g++`, `pkg-config`, `libvulkan-dev`,
 `glslc`, FFmpeg dev packages (`libavcodec-dev`, `libavformat-dev`, `libavutil-dev`,
 `libswresample-dev`, and `libswscale-dev` when Bink is enabled), `zlib1g-dev`.
 
+Git submodules (required for imgui / VMA headers):
+
+```bash
+git submodule update --init --recursive
+```
+
+Or run `./scripts/fetch_linux_deps.sh`, which initializes submodules automatically.
+
 Any distro FFmpeg **4.4+** is supported at build time (Ubuntu 22.04, Arch rolling, etc.).
 The compat header picks the right API from installed FFmpeg headers automatically.
 
