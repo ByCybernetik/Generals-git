@@ -50,4 +50,5 @@ generals_exe = executable(
     platform_lib,
   ] + (get_option('graphics_backend') == 'vulkan' ? [ww3d2_vulkan_lib] : []),
   dependencies : linux_platform_deps,
+  override_options : {'b_asneeded' : false},
 )

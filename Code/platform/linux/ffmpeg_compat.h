@@ -5,16 +5,31 @@
  * Supports FFmpeg 4.4+ (libavcodec 58) through current 6.x/7.x.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <libavutil/version.h>
 #include <libavutil/opt.h>
 #include <libavcodec/avcodec.h>
 #include <libswresample/swresample.h>
 
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(59, 37, 100)
+#include <libavutil/channel_layout.h>
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(59, 37, 100)
 #define FFMPEG_USE_CH_LAYOUT 1
 #else
 #define FFMPEG_USE_CH_LAYOUT 0
-#include <libavutil/channel_layout.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 static inline int ffmpeg_codec_channels(const AVCodecContext *codec)
@@ -103,3 +118,7 @@ static inline int ffmpeg_swr_alloc_for_codec_mono_stereo(
 	const int out_ch = (in_ch == 1) ? 1 : 2;
 	return ffmpeg_swr_alloc_for_codec(pswr, codec, out_ch, out_sample_rate);
 }
+
+#ifdef __cplusplus
+}
+#endif
