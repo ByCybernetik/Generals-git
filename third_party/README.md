@@ -20,3 +20,6 @@ VMA header: `third_party/VulkanMemoryAllocator/include/vk_mem_alloc.h`
 
 STB headers (vendored from https://github.com/planetack/stb_image): `third_party/stb/`
 (`stb_image.h`, `stb_dxt.h`, `stb_truetype.h` only)
+
+Linux port tooling (Meson, GameSpy stubs, `fetch_linux_deps.sh`) is maintained on branch
+`cursor/linux-build-setup-9732`, not on `main`.
