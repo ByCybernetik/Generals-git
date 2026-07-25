@@ -3,9 +3,52 @@
 #include "MapViewport.h"
 #include "MapOpen.h"
 #include "imgui.h"
-#include "imgui_internal.h"
 
 #include <SDL3/SDL.h>
+
+namespace {
+
+void applyFixedLayout()
+{
+	const ImGuiViewport *vp = ImGui::GetMainViewport();
+	const float menuBarH = ImGui::GetFrameHeight();
+	const ImVec2 workPos(vp->WorkPos.x, vp->WorkPos.y + menuBarH);
+	const ImVec2 workSize(vp->WorkSize.x, vp->WorkSize.y - menuBarH);
+	const float leftW = workSize.x * 0.26f;
+	const float infoH = workSize.y * 0.32f;
+	const float openMapH = workSize.y - infoH;
+
+	ImGui::SetNextWindowPos(workPos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(leftW, openMapH), ImGuiCond_Always);
+}
+
+void applyMapInfoLayout()
+{
+	const ImGuiViewport *vp = ImGui::GetMainViewport();
+	const float menuBarH = ImGui::GetFrameHeight();
+	const ImVec2 workPos(vp->WorkPos.x, vp->WorkPos.y + menuBarH);
+	const ImVec2 workSize(vp->WorkSize.x, vp->WorkSize.y - menuBarH);
+	const float leftW = workSize.x * 0.26f;
+	const float infoH = workSize.y * 0.32f;
+	const float openMapH = workSize.y - infoH;
+
+	ImGui::SetNextWindowPos(ImVec2(workPos.x, workPos.y + openMapH), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(leftW, infoH), ImGuiCond_Always);
+}
+
+void applyMapViewLayout()
+{
+	const ImGuiViewport *vp = ImGui::GetMainViewport();
+	const float menuBarH = ImGui::GetFrameHeight();
+	const ImVec2 workPos(vp->WorkPos.x, vp->WorkPos.y + menuBarH);
+	const ImVec2 workSize(vp->WorkSize.x, vp->WorkSize.y - menuBarH);
+	const float leftW = workSize.x * 0.26f;
+
+	ImGui::SetNextWindowPos(ImVec2(workPos.x + leftW, workPos.y), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(workSize.x - leftW, workSize.y), ImGuiCond_Always);
+}
+
+} // namespace
 
 void MainUi::draw(State &state, MapDocument &doc, MapViewport &viewport, SDL_Window *window)
 {
@@ -16,26 +59,6 @@ void MainUi::draw(State &state, MapDocument &doc, MapViewport &viewport, SDL_Win
 		MapOpen::refreshUserList(state.userMaps);
 		MapOpen::refreshOfficialList(state.officialMaps);
 		state.mapsListDirty = false;
-	}
-
-	ImGuiID dockspaceId = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
-
-	static bool layoutBuilt = false;
-	if (!layoutBuilt)
-	{
-		layoutBuilt = true;
-		ImGui::DockBuilderRemoveNode(dockspaceId);
-		ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
-		ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
-
-		ImGuiID dockMain = dockspaceId;
-		ImGuiID dockLeft = ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.26f, nullptr, &dockMain);
-		ImGuiID dockLeftBottom = ImGui::DockBuilderSplitNode(dockLeft, ImGuiDir_Down, 0.32f, nullptr, &dockLeft);
-
-		ImGui::DockBuilderDockWindow("Open Map", dockLeft);
-		ImGui::DockBuilderDockWindow("Map Info", dockLeftBottom);
-		ImGui::DockBuilderDockWindow("Map View", dockMain);
-		ImGui::DockBuilderFinish(dockspaceId);
 	}
 
 	if (ImGui::BeginMainMenuBar())
@@ -60,7 +83,8 @@ void MainUi::draw(State &state, MapDocument &doc, MapViewport &viewport, SDL_Win
 		state.newClicked = true;
 
 	/* Layout mirrors original OpenMap dialog: System/User radios + list + open. */
-	ImGui::Begin("Open Map");
+	applyFixedLayout();
+	ImGui::Begin("Open Map", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 	if (ImGui::Button("Browse..."))
 		state.browseClicked = true;
 	ImGui::SameLine();
@@ -120,7 +144,8 @@ void MainUi::draw(State &state, MapDocument &doc, MapViewport &viewport, SDL_Win
 		ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s", doc.lastError().str());
 	ImGui::End();
 
-	ImGui::Begin("Map Info");
+	applyMapInfoLayout();
+	ImGui::Begin("Map Info", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 	if (doc.isLoaded())
 	{
 		ImGui::Text("Size: %d x %d", doc.width(), doc.height());
@@ -146,8 +171,10 @@ void MainUi::draw(State &state, MapDocument &doc, MapViewport &viewport, SDL_Win
 	ImGui::Text("Objects: %zu", doc.objects().size());
 	ImGui::End();
 
+	applyMapViewLayout();
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	ImGui::Begin("Map View", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+	ImGui::Begin("Map View", nullptr,
+		ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 	{
 		const ImVec2 avail = ImGui::GetContentRegionAvail();
 		if (avail.x >= 64.f && avail.y >= 64.f)

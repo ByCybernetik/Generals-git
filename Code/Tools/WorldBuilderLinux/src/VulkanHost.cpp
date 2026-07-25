@@ -314,7 +314,6 @@ bool VulkanHost::init(const char *title, int width, int height)
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
 	ImGui::StyleColorsDark();
 	ImGuiStyle &style = ImGui::GetStyle();
