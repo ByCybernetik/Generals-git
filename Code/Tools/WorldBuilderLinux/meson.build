@@ -75,6 +75,7 @@ wb_linux_sources = files(
 
 wb_linux_inc = include_directories(
   'include',
+  '../../../third_party/stb',
   '../../../third_party/imgui',
   '../../../third_party/imgui/backends',
   '../../GameEngine/Include',

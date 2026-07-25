@@ -31,7 +31,6 @@ clone_or_update() {
 }
 
 echo "==> Cloning dependency sources into $DEPS"
-clone_or_update https://github.com/nothings/stb.git "$DEPS/stb"
 clone_or_update https://github.com/TheAssemblyArmada/liblzhl.git "$DEPS/liblzhl"
 clone_or_update https://github.com/ByCybernetik/CnC_Renegade-main.git "$DEPS/CnC_Renegade-main"
 clone_or_update https://github.com/ByCybernetik/CnC_Renegade-linux.git "$DEPS/CnC_Renegade-linux"
@@ -40,7 +39,6 @@ if [[ ! -d "$TP/VulkanMemoryAllocator/.git" ]]; then
 fi
 
 echo "==> Linking third_party/"
-ln -sfn "$DEPS/stb" "$TP/stb"
 mkdir -p "$TP/vma"
 if [[ -d "$TP/VulkanMemoryAllocator/include" ]]; then
   ln -sfn "../VulkanMemoryAllocator/include" "$TP/vma/include"
