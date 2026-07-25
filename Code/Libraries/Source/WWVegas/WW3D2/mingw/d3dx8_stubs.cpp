@@ -1,5 +1,5 @@
 /*
-** In-process D3DX8 replacements (no d3dx8.dll). Uses SDK headers from third_party/dxsdk8.
+** In-process D3DX8 replacements (no d3dx8.dll). Uses SDK headers from third_party/d3d8_include.
 **
 ** D3D8 LockRect(pBits) points at the top-left of the locked RECT; pixel addresses
 ** are relative to that origin (0 .. width-1), not surface coordinates.
