@@ -22,7 +22,6 @@ STB headers (vendored from https://github.com/planetack/stb_image): `third_party
 (`stb_image.h`, `stb_dxt.h`, `stb_truetype.h` only)
 
 D3D8/D3DX8 headers (compile-time only, Linux port): `third_party/d3d8_include/`
-(case-insensitive aliases in `third_party/d3d8_include_compat/`)
 
 Linux port tooling (Meson, GameSpy stubs, `fetch_linux_deps.sh`) is maintained on branch
 `cursor/linux-build-setup-9732`, not on `main`.

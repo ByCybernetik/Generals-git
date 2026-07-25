@@ -1,1 +1,0 @@
-../d3d8_include/d3dx8core.h
