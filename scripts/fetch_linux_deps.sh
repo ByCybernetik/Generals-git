@@ -39,12 +39,6 @@ if [[ ! -d "$TP/VulkanMemoryAllocator/.git" ]]; then
 fi
 
 echo "==> Linking third_party/"
-mkdir -p "$TP/vma"
-if [[ -d "$TP/VulkanMemoryAllocator/include" ]]; then
-  ln -sfn "../VulkanMemoryAllocator/include" "$TP/vma/include"
-else
-  ln -sfn "$DEPS/VulkanMemoryAllocator/include" "$TP/vma/include"
-fi
 if [[ ! -d "$TP/imgui/.git" ]]; then
   clone_or_update https://github.com/ocornut/imgui.git "$DEPS/imgui"
   ln -sfn "$DEPS/imgui" "$TP/imgui"
