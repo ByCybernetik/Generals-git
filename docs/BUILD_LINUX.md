@@ -6,7 +6,8 @@ System packages: `meson`, `ninja-build`, `g++`, `pkg-config`, `libvulkan-dev`,
 `glslc`, FFmpeg dev packages (`libavcodec-dev`, `libavformat-dev`, `libavutil-dev`,
 `libswresample-dev`, and `libswscale-dev` when Bink is enabled), `zlib1g-dev`.
 
-Any distro FFmpeg **4.4+** is supported (pkg-config names above; no pinned SONAME).
+Any distro FFmpeg **4.4+** is supported at build time (Ubuntu 22.04, Arch rolling, etc.).
+The compat header picks the right API from installed FFmpeg headers automatically.
 
 SDL3 is expected via pkg-config (e.g. install to `/opt/sdl3` and set
 `PKG_CONFIG_PATH=/opt/sdl3/lib/pkgconfig`).
