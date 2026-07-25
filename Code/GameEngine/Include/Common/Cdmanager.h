@@ -1,0 +1,1 @@
+cdmanager.h

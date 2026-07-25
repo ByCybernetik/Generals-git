@@ -1,0 +1,1 @@
+weaponsetconditionmap.h

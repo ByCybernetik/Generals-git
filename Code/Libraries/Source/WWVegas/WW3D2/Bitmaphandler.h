@@ -1,0 +1,1 @@
+bitmaphandler.h

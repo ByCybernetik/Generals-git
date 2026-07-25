@@ -1,0 +1,1 @@
+connectionmanager.h

@@ -1,0 +1,1 @@
+gadgetslider.h

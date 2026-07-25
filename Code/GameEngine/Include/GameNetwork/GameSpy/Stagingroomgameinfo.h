@@ -1,0 +1,1 @@
+stagingroomgameinfo.h

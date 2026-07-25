@@ -1,0 +1,1 @@
+moneycratecollide.h

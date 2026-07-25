@@ -1,0 +1,1 @@
+stripoptimizer.h

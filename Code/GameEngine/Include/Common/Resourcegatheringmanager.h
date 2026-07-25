@@ -1,0 +1,1 @@
+resourcegatheringmanager.h

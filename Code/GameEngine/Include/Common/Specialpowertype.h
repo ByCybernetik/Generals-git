@@ -1,0 +1,1 @@
+specialpowertype.h

@@ -1,0 +1,17 @@
+compression_sources = files(
+  'CompressionManager.cpp',
+  'EAC/btreeabout.cpp',
+  'EAC/btreedecode.cpp',
+  'EAC/btreeencode.cpp',
+  'EAC/huffabout.cpp',
+  'EAC/huffdecode.cpp',
+  'EAC/huffencode.cpp',
+  'EAC/refabout.cpp',
+  'EAC/refdecode.cpp',
+  'EAC/refencode.cpp',
+  'LZHCompress/CompLibSource/Huff.cpp',
+  'LZHCompress/CompLibSource/Lz.cpp',
+  'LZHCompress/CompLibSource/Lzhl.cpp',
+  'LZHCompress/CompLibSource/Lzhl_tcp.cpp',
+  'LZHCompress/NoxCompress.cpp',
+)

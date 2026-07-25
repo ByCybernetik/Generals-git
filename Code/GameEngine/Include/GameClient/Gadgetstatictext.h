@@ -1,0 +1,1 @@
+gadgetstatictext.h

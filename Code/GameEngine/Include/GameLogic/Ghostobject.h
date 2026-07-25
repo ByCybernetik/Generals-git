@@ -1,0 +1,1 @@
+ghostobject.h

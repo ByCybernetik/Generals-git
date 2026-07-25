@@ -1,0 +1,1 @@
+StagingRoomGameInfo.h

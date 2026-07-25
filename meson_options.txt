@@ -1,0 +1,18 @@
+option('platform', type : 'combo',
+  choices : ['windows', 'linux'],
+  value : 'linux',
+  description : 'Target OS: windows (MinGW) or linux (SDL3 + Vulkan)')
+
+option('graphics_backend', type : 'combo',
+  choices : ['vulkan'],
+  value : 'vulkan',
+  description : 'Linux WW3D2 renderer: native Vulkan (vendored ww3d2_vulkan)')
+
+option('disable_audio', type : 'boolean', value : false,
+  description : 'Stub Miles audio on Windows / native SDL3+FFmpeg on Linux')
+
+option('disable_bink', type : 'boolean', value : false,
+  description : 'Stub Bink video (exclude BinkVideoPlayer.cpp)')
+
+option('renegade_port_path', type : 'string', value : '../CnC_Renegade-main',
+  description : 'Path to CnC_Renegade-main (third_party/ and wwutil/linux stubs)')

@@ -1,0 +1,1 @@
+hashtemplate.h
