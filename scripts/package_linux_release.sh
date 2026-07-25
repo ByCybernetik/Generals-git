@@ -13,6 +13,8 @@ mkdir -p "$DIST/lib"
 
 cp "$BINARY" "$DIST/generals"
 chmod +x "$DIST/generals"
+cp "$(dirname "$0")/run-generals.sh" "$DIST/run-generals.sh"
+chmod +x "$DIST/run-generals.sh"
 
 should_bundle() {
 	case "$(basename "$1")" in
@@ -87,10 +89,34 @@ USE_SYSTEM="${GENERALS_USE_SYSTEM_FFMPEG:-1}"
 
 find_ffmpeg_lib() {
 	local name="$1"
-	ldconfig -p 2>/dev/null | awk -v n="$name" '
-		$1 == n".so.61" || $1 == n".so.60" || $1 == n".so.59" ||
-		$1 == n".so.58" || $1 == n".so.57" { print $NF; exit }
-	'
+	local best="" best_ver=-1 path entry ver dir
+
+	while read -r entry path; do
+		[[ -z "$entry" || -z "$path" ]] && continue
+		[[ "$entry" == "${name}.so."* ]] || continue
+		ver="${entry#"${name}.so."}"
+		[[ "$ver" =~ ^[0-9]+$ ]] || continue
+		if (( ver > best_ver )); then
+			best_ver=$ver
+			best="$path"
+		fi
+	done < <(ldconfig -p 2>/dev/null | awk '{print $1, $NF}')
+
+	for dir in /usr/lib /usr/lib64 /lib /lib64; do
+		[[ -d "$dir" ]] || continue
+		for path in "$dir/${name}.so."*; do
+			[[ -f "$path" ]] || continue
+			ver="$(basename "$path")"
+			ver="${ver#"${name}.so."}"
+			[[ "$ver" =~ ^[0-9]+$ ]] || continue
+			if (( ver > best_ver )); then
+				best_ver=$ver
+				best="$path"
+			fi
+		done
+	done
+
+	printf '%s' "$best"
 }
 
 setup_system_ffmpeg() {
