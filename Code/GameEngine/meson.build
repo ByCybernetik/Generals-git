@@ -46,7 +46,7 @@ _ge_inc = [
 
 inc = include_directories(_ge_inc)
 
-_d3dx_compat = meson.current_source_dir() / '../platform/linux/dxvk_compat.h'
+_d3dx_compat = meson.current_source_dir() / '../platform/linux/linux_d3dx_compat.h'
 _ge_cpp = generals_cpp_args + [
   '-D_LIB',
   '-D_MBCS',

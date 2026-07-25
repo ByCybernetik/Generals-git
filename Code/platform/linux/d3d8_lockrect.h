@@ -5,7 +5,8 @@
 
 /*
  * DXSDK8 d3d8types.h uses #pragma pack(4): D3DLOCKED_RECT is 12 bytes with pBits at +4.
- * dxvk-native writes 16 bytes with pBits at +8 on 64-bit. Use RenegadeD3DLockedRect for LockRect.
+ * D3D8 LockRect layout on 64-bit Linux uses 16 bytes with pBits at +8.
+ * Use RenegadeD3DLockedRect for LockRect.
  */
 #if defined(RENEGADE_LINUX) && (defined(__x86_64__) || defined(__aarch64__) || defined(_LP64))
 

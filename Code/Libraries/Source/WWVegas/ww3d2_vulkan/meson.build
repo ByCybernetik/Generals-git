@@ -107,6 +107,8 @@ ww3d2_vulkan_inc = include_directories(
   '../../../../../third_party/VulkanMemoryAllocator/include',
 )
 
+_linux_d3dx_compat = meson.project_source_root() / 'Code' / 'platform' / 'linux' / 'linux_d3dx_compat.h'
+
 ww3d2_vulkan_cpp_args = [
   '-std=gnu++11',
   '-DGENERALS_LINUX',
@@ -116,7 +118,7 @@ ww3d2_vulkan_cpp_args = [
   '-DRENEGADE_WW3D2_BUILD',
   '-DNDEBUG',
   '-fpermissive',
-  '-include', 'dxvk_compat.h',
+  '-include', _linux_d3dx_compat,
   '-DRENEGADE_VULKAN_SHADER_DIR="@0@"'.format(_shader_build_dir),
 ]
 

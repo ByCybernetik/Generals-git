@@ -80,7 +80,7 @@ _ged_inc = [
 
 inc = include_directories(_ged_inc)
 
-_d3dx_compat = meson.current_source_dir() / '../platform/linux/dxvk_compat.h'
+_d3dx_compat = meson.current_source_dir() / '../platform/linux/linux_d3dx_compat.h'
 _prerts = meson.current_source_dir() / '../GameEngine/Include/Precompiled/PreRTS.h'
 _ged_cpp = generals_cpp_args + [
   '-D_LIB',

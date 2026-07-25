@@ -1,6 +1,6 @@
-/* Force-included on all Linux TUs before dxvk windows_base.h */
-#ifndef RENEGADE_DXVK_PRELUDE_H
-#define RENEGADE_DXVK_PRELUDE_H
+/* Force-included on all Linux TUs before windows_base.h */
+#ifndef RENEGADE_LINUX_PRELUDE_H
+#define RENEGADE_LINUX_PRELUDE_H
 
 #include <stddef.h>
 #include <stdint.h>

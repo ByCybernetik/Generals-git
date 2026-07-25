@@ -1,5 +1,5 @@
 /*
- * SDL3 + dxvk-native (DXVK_WSI_DRIVER=SDL3): game window and event source.
+ * SDL3: game window and event source.
  */
 #include "sdl3_host.h"
 #include "pe_resource_loader.h"
@@ -141,9 +141,6 @@ extern "C" void Renegade_Stop_Main_Loop(int exitCode);
 
 void Platform_Init_Early(void)
 {
-	if (!getenv("DXVK_WSI_DRIVER")) {
-		setenv("DXVK_WSI_DRIVER", "SDL3", 0);
-	}
 	Renegade_Init_Embedded_Resources();
 }
 
@@ -643,5 +640,5 @@ void Platform_Shutdown(void)
 	for (int i = 0; i < 4; ++i) {
 		SDL_PumpEvents();
 	}
-	/* SDL_Quit can deadlock with dxvk-native after D3D8 teardown. */
+	/* SDL_Quit can deadlock after graphics teardown on some drivers. */
 }

@@ -3,7 +3,7 @@
 
 /*
  * Native Vulkan backend for WW3D2 (Linux).
- * Replaces dxvk-native / D3D8 device when built with -DRENEGADE_VULKAN.
+ * Replaces the D3D8 device when built with -DRENEGADE_VULKAN.
  */
 
 #include "vk_pipeline.h"

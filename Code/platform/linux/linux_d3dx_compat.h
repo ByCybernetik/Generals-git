@@ -1,6 +1,6 @@
-/* Force-included when compiling ww3d2 (D3DX8 types on top of dxvk windows.h). */
-#ifndef RENEGADE_DXVK_COMPAT_H
-#define RENEGADE_DXVK_COMPAT_H
+/* Force-included when compiling ww3d2 (D3DX8 types on top of linux windows.h). */
+#ifndef RENEGADE_LINUX_D3DX_COMPAT_H
+#define RENEGADE_LINUX_D3DX_COMPAT_H
 
 #if defined(RENEGADE_LINUX) && (defined(RENEGADE_WW3D2_BUILD) || defined(RENEGADE_USE_D3DX8))
 
@@ -102,4 +102,4 @@ typedef struct _GLYPHMETRICSFLOAT {
 
 #endif /* RENEGADE_LINUX && RENEGADE_WW3D2_BUILD */
 
-#endif /* RENEGADE_DXVK_COMPAT_H */
+#endif /* RENEGADE_LINUX_D3DX_COMPAT_H */

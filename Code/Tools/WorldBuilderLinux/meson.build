@@ -97,7 +97,7 @@ wb_linux_inc = include_directories(
 )
 
 _prerts = meson.project_source_root() / 'Code/GameEngine/Include/Precompiled/PreRTS.h'
-_d3dx_compat = meson.project_source_root() / 'Code/platform/linux/dxvk_compat.h'
+_d3dx_compat = meson.project_source_root() / 'Code/platform/linux/linux_d3dx_compat.h'
 
 wb_linux_cpp = generals_cpp_args + [
   '-DRENEGADE_USE_D3DX8',

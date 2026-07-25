@@ -29,6 +29,6 @@ int main(int argc, char **argv)
 
 	const int exit_code = WinMain((HINSTANCE)1, NULL, cmdline, 1);
 	Platform_Shutdown();
-	/* dxvk-native worker threads may not exit cleanly; avoid hanging in static dtors. */
+	/* Worker threads may not exit cleanly; avoid hanging in static dtors. */
 	_exit(exit_code);
 }

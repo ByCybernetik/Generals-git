@@ -1,6 +1,6 @@
 /*
- * Win32 supplement for Renegade on Linux (SDL3 + dxvk-native).
- * Base types come from dxvk <windows.h>; this header adds UI/message APIs.
+ * Win32 supplement for Renegade on Linux (SDL3 + Vulkan).
+ * Base types come from <windows.h>; this header adds UI/message APIs.
  */
 #ifndef RENEGADE_WIN32_MINIMAL_H
 #define RENEGADE_WIN32_MINIMAL_H

@@ -1,5 +1,5 @@
 /*
- * SDL3 host: window, event pump, dxvk-native WSI bootstrap.
+ * SDL3 host: window, event pump, Vulkan surface bootstrap.
  */
 #ifndef RENEGADE_SDL3_HOST_H
 #define RENEGADE_SDL3_HOST_H

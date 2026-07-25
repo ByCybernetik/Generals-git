@@ -111,7 +111,7 @@ ww3d2_sources = files(
   'linux/d3dx8_math_stubs.cpp',
 )
 
-_linux_dxvk_compat = meson.project_source_root() / 'Code' / 'platform' / 'linux' / 'dxvk_compat.h'
+_linux_d3dx_compat = meson.project_source_root() / 'Code' / 'platform' / 'linux' / 'linux_d3dx_compat.h'
 
 _ww3d2_inc = [
   '.',
@@ -139,7 +139,7 @@ foreach _arg : generals_cpp_args
 endforeach
 _ww3d2_cpp += [
   '-std=gnu++11',
-  '-include', _linux_dxvk_compat,
+  '-include', _linux_d3dx_compat,
   '-DRENEGADE_WW3D2_BUILD',
 ]
 if get_option('graphics_backend') == 'vulkan'

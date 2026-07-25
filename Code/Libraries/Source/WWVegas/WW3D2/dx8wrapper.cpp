@@ -956,7 +956,7 @@ void DX8Wrapper::Enumerate_Devices()
 			desc.reset_resolution_list();
 #if defined(RENEGADE_LINUX)
 			/*
-			** dxvk-native can stall for a long time in GetAdapterModeCount/EnumAdapterModes.
+			** D3D8 adapter enumeration can stall for a long time in GetAdapterModeCount/EnumAdapterModes.
 			** Use desktop mode plus common windowed sizes for bring-up.
 			*/
 			{
