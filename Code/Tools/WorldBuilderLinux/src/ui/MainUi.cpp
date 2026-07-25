@@ -5,7 +5,6 @@
 #include "imgui.h"
 
 #include <SDL3/SDL.h>
-#include <algorithm>
 
 namespace {
 
@@ -111,7 +110,7 @@ void MainUi::draw(State &state, MapDocument &doc, MapViewport &viewport, SDL_Win
 
 	/* Leave room for path + Open + status (~100px). */
 	const float bottomReserve = 110.f;
-	const ImVec2 listSize(0.f, ImMax(80.f, ImGui::GetContentRegionAvail().y - bottomReserve));
+	const ImVec2 listSize(0.f, std::max(80.f, ImGui::GetContentRegionAvail().y - bottomReserve));
 	if (ImGui::BeginChild("open_map_list", listSize, ImGuiChildFlags_Borders))
 	{
 		if (maps.empty())
