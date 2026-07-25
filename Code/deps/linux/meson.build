@@ -25,23 +25,9 @@ add_global_arguments(_d3d_header_inc_args + ['-include', _linux_prelude], langua
 
 zlib_dep = dependency('zlib', required : true)
 
-_ffmpeg_deps = []
-if not get_option('disable_bink')
-  _ffmpeg_deps += [
-    dependency('libavcodec', required : true),
-    dependency('libavformat', required : true),
-    dependency('libavutil', required : true),
-    dependency('libswscale', required : true),
-    dependency('libswresample', required : true),
-  ]
-endif
-if not get_option('disable_audio')
-  _ffmpeg_deps += [
-    dependency('libavcodec', required : true),
-    dependency('libavformat', required : true),
-    dependency('libavutil', required : true),
-    dependency('libswresample', required : true),
-  ]
-endif
+subdir('ffmpeg')
 
-linux_platform_deps = [sdl3_dep, vulkan_dep, linux_graphics_dep, zlib_dep] + _ffmpeg_deps
+linux_platform_deps = [sdl3_dep, vulkan_dep, linux_graphics_dep, zlib_dep]
+if _ffmpeg_want
+  linux_platform_deps += ffmpeg_dep
+endif

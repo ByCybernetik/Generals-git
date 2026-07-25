@@ -1,5 +1,6 @@
 #include "PreRTS.h"
 #include "sdlaudio_manager.h"
+#include "ffmpeg_compat.h"
 
 #include "Common/AudioEventRTS.h"
 #include "Common/AudioEventInfo.h"
@@ -2094,39 +2095,16 @@ Bool SDLAudioManager::loadAndDecodeAudio(const AsciiString& filename,
 	}
 
 	outSampleRate = codecCtx->sample_rate > 0 ? codecCtx->sample_rate : 44100;
-	outChannels = codecCtx->ch_layout.nb_channels;
+	outChannels = ffmpeg_codec_channels(codecCtx);
 	if (outChannels <= 0) outChannels = 1;
 
-	SwrContext *swr = swr_alloc();
-	if (!swr) {
+	SwrContext *swr = NULL;
+	if (ffmpeg_swr_alloc_for_codec(&swr, codecCtx, outChannels, outSampleRate) < 0) {
 		avcodec_free_context(&codecCtx);
 		avformat_close_input(&fmt);
 		delete[] fileData;
 		return false;
 	}
-
-	AVChannelLayout outLayout;
-	if (outChannels == 1)
-		av_channel_layout_default(&outLayout, 1);
-	else
-		av_channel_layout_default(&outLayout, 2);
-
-	av_opt_set_chlayout(swr, "in_chlayout", &codecCtx->ch_layout, 0);
-	av_opt_set_chlayout(swr, "out_chlayout", &outLayout, 0);
-	av_opt_set_int(swr, "in_sample_rate", codecCtx->sample_rate, 0);
-	av_opt_set_int(swr, "out_sample_rate", codecCtx->sample_rate, 0);
-	av_opt_set_sample_fmt(swr, "in_sample_fmt", codecCtx->sample_fmt, 0);
-	av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-
-	if (swr_init(swr) < 0) {
-		swr_free(&swr);
-		avcodec_free_context(&codecCtx);
-		avformat_close_input(&fmt);
-		delete[] fileData;
-		return false;
-	}
-
-	outChannels = (outLayout.nb_channels > 0) ? (int)outLayout.nb_channels : outChannels;
 
 	AVFrame *frame = av_frame_alloc();
 	AVPacket *pkt = av_packet_alloc();
@@ -2300,26 +2278,8 @@ Bool SDLAudioManager::openStreamForMusic(AudioEventRTS *event)
 		return false;
 	}
 
-	SwrContext *swr = swr_alloc();
-	if (!swr) {
-		avcodec_free_context(&codecCtx);
-		avformat_close_input(&fmt);
-		delete[] fileData;
-		return false;
-	}
-
-	AVChannelLayout outLayout;
-	av_channel_layout_default(&outLayout, m_targetChannels);
-
-	av_opt_set_chlayout(swr, "in_chlayout", &codecCtx->ch_layout, 0);
-	av_opt_set_chlayout(swr, "out_chlayout", &outLayout, 0);
-	av_opt_set_int(swr, "in_sample_rate", codecCtx->sample_rate, 0);
-	av_opt_set_int(swr, "out_sample_rate", m_targetSampleRate, 0);
-	av_opt_set_sample_fmt(swr, "in_sample_fmt", codecCtx->sample_fmt, 0);
-	av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-
-	if (swr_init(swr) < 0) {
-		swr_free(&swr);
+	SwrContext *swr = NULL;
+	if (ffmpeg_swr_alloc_for_codec(&swr, codecCtx, m_targetChannels, m_targetSampleRate) < 0) {
 		avcodec_free_context(&codecCtx);
 		avformat_close_input(&fmt);
 		delete[] fileData;

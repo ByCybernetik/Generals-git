@@ -3,7 +3,10 @@
 ## Dependencies
 
 System packages: `meson`, `ninja-build`, `g++`, `pkg-config`, `libvulkan-dev`,
-`glslc`, FFmpeg (`libavcodec-dev` … `libswresample-dev`), `zlib1g-dev`.
+`glslc`, FFmpeg dev packages (`libavcodec-dev`, `libavformat-dev`, `libavutil-dev`,
+`libswresample-dev`, and `libswscale-dev` when Bink is enabled), `zlib1g-dev`.
+
+Any distro FFmpeg **4.4+** is supported (pkg-config names above; no pinned SONAME).
 
 SDL3 is expected via pkg-config (e.g. install to `/opt/sdl3` and set
 `PKG_CONFIG_PATH=/opt/sdl3/lib/pkgconfig`).
@@ -47,4 +50,4 @@ export LD_LIBRARY_PATH=/path/to/sdl3/lib:$LD_LIBRARY_PATH
 ./generals-stripped
 ```
 
-You still need SDL3 (`libSDL3.so.0`), Vulkan, and FFmpeg installed on the target machine.
+You still need SDL3 (`libSDL3.so.0`), Vulkan, and FFmpeg runtime libraries on the target machine (any FFmpeg 4.4+ from your distro).

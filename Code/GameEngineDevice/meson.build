@@ -107,13 +107,8 @@ endif
 _ged_deps = []
 if host_machine.system() == 'linux'
   _ged_deps += [sdl3_dep]
-  if not get_option('disable_audio') or not get_option('disable_bink')
-    _ged_deps += [
-      dependency('libavcodec', required : true),
-      dependency('libavformat', required : true),
-      dependency('libavutil', required : true),
-      dependency('libswresample', required : true),
-    ]
+  if not get_option('disable_audio') and _ffmpeg_want
+    _ged_deps += [ffmpeg_dep]
   endif
 endif
 

@@ -3,6 +3,7 @@
  */
 
 #include "bink_linux.h"
+#include "ffmpeg_compat.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -390,7 +391,7 @@ static int bink_init_audio_device(BinkFile *bf)
 	}
 
 	rate = bf->adec->sample_rate > 0 ? bf->adec->sample_rate : 44100;
-	out_ch = (bf->adec->ch_layout.nb_channels == 1) ? 1 : 2;
+	out_ch = (ffmpeg_codec_channels(bf->adec) == 1) ? 1 : 2;
 
 	SDL_zero(spec);
 	spec.freq = rate;
@@ -873,24 +874,13 @@ HBINK BinkOpen(const char *name, unsigned long flags)
 		apar = bf->fmt->streams[bf->astream]->codecpar;
 		acodec = avcodec_find_decoder(apar->codec_id);
 		if (acodec != NULL) {
-			AVChannelLayout out_layout = AV_CHANNEL_LAYOUT_STEREO;
-
 			bf->adec = avcodec_alloc_context3(acodec);
 			if (bf->adec != NULL &&
 				avcodec_parameters_to_context(bf->adec, apar) == 0 &&
 				avcodec_open2(bf->adec, acodec, NULL) == 0)
 			{
-				bf->swr = swr_alloc();
-				if (bf->adec->ch_layout.nb_channels == 1) {
-					out_layout = AV_CHANNEL_LAYOUT_MONO;
-				}
-				av_opt_set_chlayout(bf->swr, "in_chlayout", &bf->adec->ch_layout, 0);
-				av_opt_set_chlayout(bf->swr, "out_chlayout", &out_layout, 0);
-				av_opt_set_int(bf->swr, "in_sample_rate", bf->adec->sample_rate, 0);
-				av_opt_set_int(bf->swr, "out_sample_rate", bf->adec->sample_rate, 0);
-				av_opt_set_sample_fmt(bf->swr, "in_sample_fmt", bf->adec->sample_fmt, 0);
-				av_opt_set_sample_fmt(bf->swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
-				if (swr_init(bf->swr) == 0) {
+				if (ffmpeg_swr_alloc_for_codec_mono_stereo(
+						&bf->swr, bf->adec, bf->adec->sample_rate) == 0) {
 					bink_init_audio_device(bf);
 				}
 			}
