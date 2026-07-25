@@ -11,12 +11,9 @@ extern "C" {
 
 #include <libavutil/version.h>
 #include <libavutil/opt.h>
+#include <libavutil/channel_layout.h>
 #include <libavcodec/avcodec.h>
 #include <libswresample/swresample.h>
-
-#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(59, 37, 100)
-#include <libavutil/channel_layout.h>
-#endif
 
 #ifdef __cplusplus
 }
@@ -61,7 +58,7 @@ static inline int ffmpeg_swr_alloc_for_codec(
 
 #if FFMPEG_USE_CH_LAYOUT
 	{
-		AVChannelLayout out_layout;
+		AVChannelLayout out_layout = {0};
 
 		swr = swr_alloc();
 		if (swr == NULL) {
@@ -75,6 +72,16 @@ static inline int ffmpeg_swr_alloc_for_codec(
 		av_opt_set_int(swr, "out_sample_rate", out_sample_rate, 0);
 		av_opt_set_sample_fmt(swr, "in_sample_fmt", codec->sample_fmt, 0);
 		av_opt_set_sample_fmt(swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
+
+		ret = swr_init(swr);
+		av_channel_layout_uninit(&out_layout);
+		if (ret < 0) {
+			swr_free(&swr);
+			return ret;
+		}
+
+		*pswr = swr;
+		return 0;
 	}
 #else
 	{

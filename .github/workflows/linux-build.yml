@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             meson ninja-build g++ pkg-config git cmake curl patchelf \
-            libvulkan-dev google-shaderc zlib1g-dev libstdc++-11-dev \
+            libvulkan-dev glslc zlib1g-dev libstdc++-11-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
             libxxf86vm-dev libxinerama-dev libxfixes-dev libdrm-dev libgbm-dev \
