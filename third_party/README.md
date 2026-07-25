@@ -11,6 +11,9 @@ git submodule update --init --recursive
 | Path | Repository |
 |------|------------|
 | `Vulkan-Headers` | https://github.com/KhronosGroup/Vulkan-Headers |
+| `VulkanMemoryAllocator` | https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator |
 | `imgui` | (see `.gitmodules`) |
 
-Vulkan headers install path: `third_party/Vulkan-Headers/include`
+Vulkan headers: `third_party/Vulkan-Headers/include`
+
+VMA header: `third_party/VulkanMemoryAllocator/include/vk_mem_alloc.h`
