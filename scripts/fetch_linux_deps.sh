@@ -50,14 +50,19 @@ COMPAT="$TP/d3d8_include_compat"
 INC="$TP/d3d8_include"
 if [[ -d "$INC" ]]; then
   mkdir -p "$COMPAT"
-  for f in d3dx8math.h d3dx8core.h d3dx8tex.h; do
-    for alias in "$f" "${f^}" "$(echo "$f" | sed 's/d3/D3/;s/x8/X8/')"; do
-      ln -sfn "../d3d8_include/$f" "$COMPAT/$alias"
+  link_alias() {
+    local base="$1"
+    shift
+    for alias in "$@"; do
+      ln -sfn "../d3d8_include/$base" "$COMPAT/$alias"
     done
-  done
-  ln -sfn "../d3d8_include/d3dx8math.h" "$COMPAT/Dx8math.h"
-  ln -sfn "../d3d8_include/d3dx8core.h" "$COMPAT/Dx8core.h"
-  ln -sfn "../d3d8_include/d3dx8tex.h" "$COMPAT/Dx8tex.h"
+  }
+  link_alias d3dx8math.h \
+    d3dx8math.h D3dx8math.h D3dx8Math.h D3DX8Math.h D3DX8MATH.H D3dX8math.h Dx8math.h
+  link_alias d3dx8core.h \
+    d3dx8core.h D3dx8core.h D3dx8Core.h D3DX8Core.h D3DX8CORE.H D3dX8core.h Dx8core.h
+  link_alias d3dx8tex.h \
+    d3dx8tex.h D3dx8tex.h D3dx8Tex.h D3DX8Tex.h D3DX8TEX.H D3dX8tex.h Dx8tex.h
 fi
 
 # RenderDoc app header (single file).
