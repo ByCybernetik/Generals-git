@@ -44,7 +44,7 @@ if _ffmpeg_lib_names.length() > 0
   _use_bundled = false
   if _bundled_opt == 'bundled'
     if not fs.exists(_ffmpeg_pc / 'libavcodec.pc')
-      error('bundled_ffmpeg=bundled but ' + _ffmpeg_pc.to_string() + ' not found. Run scripts/build_minimal_ffmpeg.sh')
+      error('bundled_ffmpeg=bundled but @0@/libavcodec.pc not found. Run scripts/build_minimal_ffmpeg.sh'.format(_ffmpeg_pc))
     endif
     _use_bundled = true
   elif _bundled_opt == 'auto' and fs.exists(_ffmpeg_pc / 'libavcodec.pc')
