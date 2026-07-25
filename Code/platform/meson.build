@@ -35,7 +35,7 @@ platform_lib = static_library(
   platform_sources,
   include_directories : platform_inc,
   cpp_args : _platform_cpp,
-  dependencies : [sdl3_dep] + (get_option('disable_bink') ? [] : [ffmpeg_dep]),
+  dependencies : [sdl3_dep] + (get_option('disable_bink') ? [] : _ffmpeg_dep_list),
   install : false,
 )
 

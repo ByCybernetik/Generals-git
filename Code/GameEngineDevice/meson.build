@@ -108,7 +108,7 @@ _ged_deps = []
 if host_machine.system() == 'linux'
   _ged_deps += [sdl3_dep]
   if not get_option('disable_audio') and _ffmpeg_want
-    _ged_deps += [ffmpeg_dep]
+    _ged_deps += _ffmpeg_dep_list
   endif
 endif
 

@@ -22,8 +22,3 @@ foreach _lib : _ffmpeg_libs
     _ffmpeg_dep_list += _dep
   endif
 endforeach
-
-ffmpeg_dep = declare_dependency(
-  dependencies : _ffmpeg_dep_list,
-  compile_args : ['-I' + (meson.project_source_root() / 'Code' / 'platform' / 'linux')],
-)

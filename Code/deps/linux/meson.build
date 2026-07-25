@@ -29,5 +29,5 @@ subdir('ffmpeg')
 
 linux_platform_deps = [sdl3_dep, vulkan_dep, linux_graphics_dep, zlib_dep]
 if _ffmpeg_want
-  linux_platform_deps += ffmpeg_dep
+  linux_platform_deps += _ffmpeg_dep_list
 endif
