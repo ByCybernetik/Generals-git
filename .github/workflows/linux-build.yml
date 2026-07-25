@@ -1,0 +1,109 @@
+name: Linux build (generals)
+
+on:
+  push:
+    branches:
+      - cursor/linux-build-setup-9732
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linux-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            meson ninja-build g++ pkg-config git cmake curl \
+            libvulkan-dev glslc zlib1g-dev libstdc++-14-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxxf86vm-dev libxinerama-dev libxfixes-dev libdrm-dev libgbm-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libwayland-dev libdecor-0-dev libxkbcommon-dev
+
+      - name: Build SDL3
+        run: |
+          SDL_PREFIX="$RUNNER_TEMP/sdl3"
+          echo "SDL_PREFIX=$SDL_PREFIX" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$SDL_PREFIX/lib/pkgconfig" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$SDL_PREFIX/lib" >> "$GITHUB_ENV"
+          git clone --depth 1 --branch release-3.2.16 https://github.com/libsdl-org/SDL.git /tmp/SDL
+          cmake -S /tmp/SDL -B /tmp/SDL/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$SDL_PREFIX" \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF
+          cmake --build /tmp/SDL/build -j"$(nproc)"
+          cmake --install /tmp/SDL/build
+          pkg-config --modversion sdl3
+
+      - name: Fetch third-party sources
+        run: ./scripts/fetch_linux_deps.sh
+
+      - name: Configure Meson
+        run: |
+          CC=gcc CXX=g++ meson setup build-linux \
+            -Dplatform=linux \
+            -Dgraphics_backend=vulkan
+
+      - name: Build generals
+        run: ninja -C build-linux Code/Main/generals
+
+      - name: Package stripped binary
+        run: |
+          strip build-linux/Code/Main/generals -o generals-stripped
+          tar -czf generals-linux-x86_64-stripped.tar.gz generals-stripped
+          sha256sum generals-linux-x86_64-stripped.tar.gz > generals-linux-x86_64-stripped.tar.gz.sha256
+          ls -lh generals-linux-x86_64-stripped.tar.gz generals-stripped
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generals-linux-x86_64-stripped
+          path: |
+            generals-linux-x86_64-stripped.tar.gz
+            generals-linux-x86_64-stripped.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release (linux-preview)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: linux-preview
+          name: Linux preview build
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          body: |
+            Stripped Linux x86_64 build of `generals` from branch `${{ github.ref_name }}`.
+            Commit: ${{ github.sha }}
+
+            **Download:** `generals-linux-x86_64-stripped.tar.gz`
+
+            Extract and run:
+            ```bash
+            tar -xzf generals-linux-x86_64-stripped.tar.gz
+            chmod +x generals-stripped
+            export LD_LIBRARY_PATH=/path/to/sdl3/lib:$LD_LIBRARY_PATH
+            ./generals-stripped
+            ```
+
+            Requires SDL3, Vulkan, and FFmpeg runtime libraries on your system.
+            GameSpy online features are stubbed.
+          files: |
+            generals-linux-x86_64-stripped.tar.gz
+            generals-linux-x86_64-stripped.tar.gz.sha256
+          overwrite_files: true
+          fail_on_unmatched_files: true

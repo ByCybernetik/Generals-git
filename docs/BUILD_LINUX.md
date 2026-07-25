@@ -32,3 +32,19 @@ ninja -C build-linux Code/Main/generals
 Binary: `build-linux/Code/Main/generals`.
 
 GameSpy online APIs are stubbed (no live GameSpy servers).
+
+## Prebuilt binary (CI)
+
+After the [Linux build workflow](https://github.com/ByCybernetik/Generals-git/actions/workflows/linux-build.yml) runs on branch `cursor/linux-build-setup-9732`:
+
+1. **GitHub Release (recommended):** [linux-preview](https://github.com/ByCybernetik/Generals-git/releases/tag/linux-preview) — download `generals-linux-x86_64-stripped.tar.gz`
+2. **Workflow artifact:** open the latest successful run → **Artifacts** → `generals-linux-x86_64-stripped`
+
+```bash
+tar -xzf generals-linux-x86_64-stripped.tar.gz
+chmod +x generals-stripped
+export LD_LIBRARY_PATH=/path/to/sdl3/lib:$LD_LIBRARY_PATH
+./generals-stripped
+```
+
+You still need SDL3 (`libSDL3.so.0`), Vulkan, and FFmpeg installed on the target machine.
