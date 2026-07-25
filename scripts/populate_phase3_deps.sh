@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Populate gitignored third-party sources for Phase 3 (Compression, GameSpy SDK).
+# Populate gitignored third-party sources for Phase 3 (Compression / LZH).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
