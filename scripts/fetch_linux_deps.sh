@@ -87,6 +87,10 @@ for f in Lzhl.cpp Lz.cpp Huff.cpp hdec_g.tbl hdec_s.tbl hdisp.tbl henc.tbl \
     cp -f "$DEPS/liblzhl/src/$f" "$LZH_SRC/$dest"
   fi
 done
+# Generals uses CompLibHeader/lzhl.h, not liblzhl's installed <lzhl/lzhl.h> layout.
+if [[ -f "$LZH_SRC/Lzhl.cpp" ]]; then
+  sed -i 's|#include <lzhl/lzhl.h>|#include "lzhl.h"|' "$LZH_SRC/Lzhl.cpp"
+fi
 # Headers used by sources
 for f in _lzhl.h _lz.h _huff.h; do
   [[ -f "$DEPS/liblzhl/src/$f" ]] && cp -f "$DEPS/liblzhl/src/$f" "$LZH_SRC/$f"
