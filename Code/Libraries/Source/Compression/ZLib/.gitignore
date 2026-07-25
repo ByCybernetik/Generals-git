@@ -1,4 +1,4 @@
-# Ignore everything in this directory
+# Ignore vendored zlib sources on Linux; keep the shim header.
 *
-# Except this file
 !.gitignore
+!zlib.h
