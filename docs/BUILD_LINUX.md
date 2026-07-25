@@ -45,9 +45,9 @@ After the [Linux build workflow](https://github.com/ByCybernetik/Generals-git/ac
 
 ```bash
 tar -xzf generals-linux-x86_64-stripped.tar.gz
-chmod +x generals-stripped
-export LD_LIBRARY_PATH=/path/to/sdl3/lib:$LD_LIBRARY_PATH
-./generals-stripped
+cd generals-linux
+./run-generals.sh
 ```
 
-You still need SDL3 (`libSDL3.so.0`), Vulkan, and FFmpeg runtime libraries on the target machine (any FFmpeg 4.4+ from your distro).
+SDL3 and FFmpeg are bundled in `lib/` — you do not need matching system `libavcodec` packages.
+You still need Vulkan drivers and standard desktop libraries (X11/Wayland).

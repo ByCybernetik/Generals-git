@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            meson ninja-build g++ pkg-config git cmake curl \
+            meson ninja-build g++ pkg-config git cmake curl patchelf \
             libvulkan-dev glslc zlib1g-dev libstdc++-14-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
@@ -62,12 +62,14 @@ jobs:
       - name: Build generals
         run: ninja -C build-linux Code/Main/generals
 
-      - name: Package stripped binary
+      - name: Package release with bundled libs
         run: |
           strip build-linux/Code/Main/generals -o generals-stripped
-          tar -czf generals-linux-x86_64-stripped.tar.gz generals-stripped
+          chmod +x scripts/package_linux_release.sh
+          ./scripts/package_linux_release.sh generals-stripped generals-linux-x86_64-stripped.tar.gz
           sha256sum generals-linux-x86_64-stripped.tar.gz > generals-linux-x86_64-stripped.tar.gz.sha256
-          ls -lh generals-linux-x86_64-stripped.tar.gz generals-stripped
+          ls -lh generals-linux-x86_64-stripped.tar.gz
+          tar -tzf generals-linux-x86_64-stripped.tar.gz
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -96,12 +98,12 @@ jobs:
             Extract and run:
             ```bash
             tar -xzf generals-linux-x86_64-stripped.tar.gz
-            chmod +x generals-stripped
-            export LD_LIBRARY_PATH=/path/to/sdl3/lib:$LD_LIBRARY_PATH
-            ./generals-stripped
+            cd generals-linux
+            ./run-generals.sh
             ```
 
-            Requires SDL3, Vulkan, and FFmpeg runtime libraries on your system.
+            SDL3 and FFmpeg libraries are bundled in `lib/` (no system libavcodec version required).
+            You still need Vulkan drivers and standard desktop libraries (X11/Wayland).
             GameSpy online features are stubbed.
           files: |
             generals-linux-x86_64-stripped.tar.gz
