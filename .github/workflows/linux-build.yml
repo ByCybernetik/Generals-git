@@ -47,6 +47,7 @@ jobs:
             -DSDL_SHARED=ON -DSDL_STATIC=OFF
           cmake --build /tmp/SDL/build -j"$(nproc)"
           cmake --install /tmp/SDL/build
+          export PKG_CONFIG_PATH="$SDL_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           pkg-config --modversion sdl3
 
       - name: Fetch third-party sources
