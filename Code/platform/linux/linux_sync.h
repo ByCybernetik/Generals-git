@@ -14,7 +14,8 @@ BOOL renegade_sync_reset_event(HANDLE h);
 DWORD renegade_sync_wait_for_single_object(HANDLE h, DWORD ms);
 BOOL renegade_sync_close_handle(HANDLE h);
 
-uintptr_t renegade_sync_begin_thread(void (*start)(void *), void *arg);
+/* Matches MSVC _beginthreadex start routine: unsigned (*)(void *). */
+uintptr_t renegade_sync_begin_thread(unsigned (*start)(void *), void *arg);
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,3 @@
-# Ignore everything in this directory
-*
-# Except this file
-!.gitignore
+# Track CompLib headers needed for Linux builds (from liblzhl).
+*.o
+*.a

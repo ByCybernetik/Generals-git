@@ -1,4 +1,4 @@
-# Ignore everything in this directory
-*
-# Except this file
-!.gitignore
+# Track CompLib sources needed for Linux builds (from liblzhl).
+# Ignore only build artifacts if any.
+*.o
+*.a

@@ -62,7 +62,17 @@ shader_deploy_stamp = custom_target(
   output : 'shader_deploy.stamp',
   command : [
     find_program('bash'), '-c',
-    'mkdir -p "@0@" && cp "@INPUT0@" "@0@/mesh_textured.vert.spv" && cp "@INPUT1@" "@0@/mesh_textured.frag.spv" && cp "@INPUT2@" "@0@/simple_2d.vert.spv" && cp "@INPUT3@" "@0@/simple_2d.frag.spv" && cp "@INPUT4@" "@0@/terrain.vert.spv" && cp "@INPUT5@" "@0@/terrain.frag.spv" && touch "@OUTPUT@"'.format(_shader_deploy_dir),
+    # Meson only substitutes @INPUT@/@OUTPUT@ as separate argv tokens.
+    'mkdir -p "$1" && cp "$2" "$1/mesh_textured.vert.spv" && cp "$3" "$1/mesh_textured.frag.spv" && cp "$4" "$1/simple_2d.vert.spv" && cp "$5" "$1/simple_2d.frag.spv" && cp "$6" "$1/terrain.vert.spv" && cp "$7" "$1/terrain.frag.spv" && touch "$8"',
+    '_',
+    _shader_deploy_dir,
+    '@INPUT0@',
+    '@INPUT1@',
+    '@INPUT2@',
+    '@INPUT3@',
+    '@INPUT4@',
+    '@INPUT5@',
+    '@OUTPUT@',
   ],
   build_by_default : true,
 )
@@ -105,6 +115,7 @@ ww3d2_vulkan_inc = include_directories(
   '../WWDebug',
   '../../../../../third_party/stb',
   '../../../../../third_party/vma/include',
+  '../../../../../third_party/renderdoc',
 )
 
 ww3d2_vulkan_cpp_args = [

@@ -496,9 +496,9 @@ public:
 
 		//	Check to ensure we don't wrap around the list (stop after iterating
 		// the list once).
-		if (CurNode != NULL && CurNode->Object != NULL && OriginalHead != CurNode) {
-			OriginalHead		= (OriginalHead == NULL) ? CurNode : OriginalHead;
-			(*object)			= (ObjectType *)CurNode->Object;
+		if (this->CurNode != NULL && this->CurNode->Object != NULL && OriginalHead != this->CurNode) {
+			OriginalHead		= (OriginalHead == NULL) ? this->CurNode : OriginalHead;
+			(*object)			= (ObjectType *)this->CurNode->Object;
 
 
 			// Remove the node from the head of the list and

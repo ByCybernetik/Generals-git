@@ -104,6 +104,19 @@ if get_option('graphics_backend') == 'vulkan'
   _link_libs += ww3d2_vulkan_lib
 endif
 
+_ged_deps = []
+if host_machine.system() == 'linux'
+  _ged_deps += [sdl3_dep]
+  if not get_option('disable_audio') or not get_option('disable_bink')
+    _ged_deps += [
+      dependency('libavcodec', required : true),
+      dependency('libavformat', required : true),
+      dependency('libavutil', required : true),
+      dependency('libswresample', required : true),
+    ]
+  endif
+endif
+
 gameenginedevice_lib = static_library(
   'gameenginedevice',
   _ged_sources,
@@ -111,4 +124,5 @@ gameenginedevice_lib = static_library(
   cpp_args : _ged_cpp,
   link_args : generals_link_args,
   link_with : _link_libs,
+  dependencies : _ged_deps,
 )

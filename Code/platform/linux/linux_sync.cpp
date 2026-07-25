@@ -244,21 +244,21 @@ BOOL renegade_sync_close_handle(HANDLE h)
 }
 
 struct ThreadStartBundle {
-	void (*start)(void *);
+	unsigned (*start)(void *);
 	void *arg;
 };
 
 static void *thread_trampoline_safe(void *param)
 {
 	ThreadStartBundle *bundle = (ThreadStartBundle *)param;
-	void (*start)(void *) = bundle->start;
+	unsigned (*start)(void *) = bundle->start;
 	void *arg = bundle->arg;
 	free(bundle);
-	start(arg);
+	(void)start(arg);
 	return NULL;
 }
 
-uintptr_t renegade_sync_begin_thread(void (*start)(void *), void *arg)
+uintptr_t renegade_sync_begin_thread(unsigned (*start)(void *), void *arg)
 {
 	RenegadeHandle *handle = (RenegadeHandle *)calloc(1, sizeof(RenegadeHandle));
 	RenegadeThread *thread = (RenegadeThread *)calloc(1, sizeof(RenegadeThread));

@@ -25,6 +25,10 @@ _dsp_list = run_command(
 compression_sources = []
 foreach _p : _dsp_list.stdout().strip().split('\n')
   if _p != ''
+    # Linux uses system zlib; skip vendored ZLib/*.c from the .dsp.
+    if host_machine.system() == 'linux' and _p.startswith('ZLib/')
+      continue
+    endif
     compression_sources += files(_p)
   endif
 endforeach

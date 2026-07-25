@@ -38,6 +38,9 @@ generals_cpp_args = [
   '-DNDEBUG',
   '-fpermissive',
   '-fshort-wchar',
+  # Legacy Westwood tables/casts; keep buildable on modern GCC/Clang.
+  '-Wno-narrowing',
+  '-Wno-write-strings',
 ]
 add_global_arguments(generals_cpp_args, language : 'cpp')
 
