@@ -48,6 +48,7 @@
 **	4069, 4200, 4237, 4103, 4001, 4035, 4164. Makes you wonder, eh?
 */
 
+#ifdef _MSC_VER
 // "unreferenced inline function has been removed" Yea, so what?
 #pragma warning(disable : 4514)
 
@@ -88,6 +89,7 @@
 
 // 'unreferenced local variable'. good thing to know about...
 #pragma warning(error : 4101)
+#endif /* _MSC_VER */
 
 #ifndef PI
 #define PI     3.14159265359f

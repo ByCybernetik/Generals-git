@@ -9,7 +9,7 @@ project('cnc-generals', ['c', 'cpp'],
   default_options : [
     'cpp_std=gnu++11',
     'buildtype=debugoptimized',
-    'warning_level=1',
+    'warning_level=0',
   ],
 )
 
@@ -38,6 +38,15 @@ generals_cpp_args = [
   '-DNDEBUG',
   '-fpermissive',
   '-fshort-wchar',
+  # Legacy MSVC/Win32 sources: match old operator-new semantics and silence
+  # noisy GCC warnings that do not indicate real Linux-port bugs.
+  '-fcheck-new',
+  '-Wno-unknown-pragmas',
+  '-Wno-endif-labels',
+  '-Wno-sign-compare',
+  '-Wno-strict-aliasing',
+  '-Wno-parentheses',
+  '-Wno-unused-parameter',
 ]
 add_global_arguments(generals_cpp_args, language : 'cpp')
 
