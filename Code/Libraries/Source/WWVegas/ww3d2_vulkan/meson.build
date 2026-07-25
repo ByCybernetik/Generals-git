@@ -104,7 +104,7 @@ ww3d2_vulkan_inc = include_directories(
   '../WWLib',
   '../WWDebug',
   '../../../../../third_party/stb',
-  '../../../../../third_party/vma/include',
+  '../../../../../third_party/VulkanMemoryAllocator/include',
 )
 
 ww3d2_vulkan_cpp_args = [
