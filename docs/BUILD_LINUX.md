@@ -49,5 +49,6 @@ cd generals-linux
 ./run-generals.sh
 ```
 
-SDL3 and FFmpeg are bundled in `lib/` — you do not need matching system `libavcodec` packages.
+SDL3 and FFmpeg: `./run-generals.sh` prefers your system `libavcodec.so.*` (any distro version 4.4+).
+Set `GENERALS_USE_SYSTEM_FFMPEG=0` to use only bundled libraries in `lib/`.
 You still need Vulkan drivers and standard desktop libraries (X11/Wayland).

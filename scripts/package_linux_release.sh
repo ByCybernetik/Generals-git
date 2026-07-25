@@ -32,7 +32,7 @@ bundle_lib() {
 
 collect_deps() {
 	local target="$1"
-	local lib dep base
+	local lib dep
 
 	while IFS= read -r line; do
 		lib="$(awk '/=>/ { print $3 }' <<<"$line")"
@@ -56,14 +56,63 @@ collect_deps() {
 
 collect_deps "$DIST/generals"
 
+# Unversioned symlinks so the binary can load libavcodec.so (any SONAME via launcher).
+for lib in "$DIST/lib"/libav*.so.* "$DIST/lib"/libsw*.so.*; do
+	[[ -f "$lib" ]] || continue
+	base="$(basename "$lib")"
+	unversioned="${base%%.so.*}.so"
+	ln -sfn "$base" "$DIST/lib/$unversioned"
+done
+
 if command -v patchelf >/dev/null 2>&1; then
 	patchelf --set-rpath '$ORIGIN/lib' "$DIST/generals"
+	while IFS= read -r needed; do
+		case "$needed" in
+		libav*.so.*|libsw*.so.*)
+			unversioned="${needed%%.so.*}.so"
+			patchelf --replace-needed "$needed" "$unversioned" "$DIST/generals" 2>/dev/null || true
+			;;
+		esac
+	done < <(patchelf --print-needed "$DIST/generals")
 fi
 
 cat > "$DIST/run-generals.sh" <<'EOF'
 #!/usr/bin/env bash
+set -euo pipefail
+
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export LD_LIBRARY_PATH="$DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+BUNDLED="$DIR/lib"
+RUNTIME="$DIR/.runtime-libs"
+USE_SYSTEM="${GENERALS_USE_SYSTEM_FFMPEG:-1}"
+
+find_ffmpeg_lib() {
+	local name="$1"
+	ldconfig -p 2>/dev/null | awk -v n="$name" '
+		$1 == n".so.61" || $1 == n".so.60" || $1 == n".so.59" ||
+		$1 == n".so.58" || $1 == n".so.57" { print $NF; exit }
+	'
+}
+
+setup_system_ffmpeg() {
+	local name path
+	rm -rf "$RUNTIME"
+	mkdir -p "$RUNTIME"
+	for name in libavcodec libavformat libavutil libswresample libswscale; do
+		path="$(find_ffmpeg_lib "$name")"
+		if [[ -z "$path" || ! -f "$path" ]]; then
+			return 1
+		fi
+		ln -sf "$path" "$RUNTIME/${name}.so"
+	done
+	return 0
+}
+
+if [[ "$USE_SYSTEM" != "0" ]] && setup_system_ffmpeg; then
+	export LD_LIBRARY_PATH="$RUNTIME:$BUNDLED${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+else
+	export LD_LIBRARY_PATH="$BUNDLED${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 exec "$DIR/generals" "$@"
 EOF
 chmod +x "$DIST/run-generals.sh"
@@ -74,13 +123,13 @@ Generals Linux preview build
 Run:
   ./run-generals.sh
 
-Or (if rpath is set):
-  ./generals
+The launcher prefers your system FFmpeg (libavcodec.so.*) when available.
+Set GENERALS_USE_SYSTEM_FFMPEG=0 to force bundled libraries in lib/.
 
-Bundled libraries: SDL3 and FFmpeg (no matching system packages required).
-You still need Vulkan drivers and normal desktop libraries (X11/Wayland, etc.).
+Bundled SDL3 is always taken from lib/ if not installed system-wide.
+You still need Vulkan drivers and normal desktop libraries (X11/Wayland).
 EOF
 
 tar -czf "$ARCHIVE" -C "$ROOT" generals-linux
 echo "Created $ARCHIVE"
-tar -tzf "$ARCHIVE" | head -30
+tar -tzf "$ARCHIVE" | head -40

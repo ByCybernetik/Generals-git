@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
 
     steps:
@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             meson ninja-build g++ pkg-config git cmake curl patchelf \
-            libvulkan-dev glslc zlib1g-dev libstdc++-14-dev \
+            libvulkan-dev google-shaderc zlib1g-dev libstdc++-11-dev \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
             libxxf86vm-dev libxinerama-dev libxfixes-dev libdrm-dev libgbm-dev \
@@ -102,8 +102,8 @@ jobs:
             ./run-generals.sh
             ```
 
-            SDL3 and FFmpeg libraries are bundled in `lib/` (no system libavcodec version required).
-            You still need Vulkan drivers and standard desktop libraries (X11/Wayland).
+            SDL3 and FFmpeg: run via ./run-generals.sh — uses your system libavcodec.so.* when found, otherwise bundled lib/.
+            Set GENERALS_USE_SYSTEM_FFMPEG=0 to force bundled FFmpeg only.
             GameSpy online features are stubbed.
           files: |
             generals-linux-x86_64-stripped.tar.gz
