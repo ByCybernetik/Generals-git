@@ -9,6 +9,9 @@ System packages: `meson`, `ninja-build`, `g++`, `pkg-config`, `libvulkan-dev`,
 Any distro FFmpeg **4.4+** is supported at build time (Ubuntu 22.04, Arch rolling, etc.).
 The compat header picks the right API from installed FFmpeg headers automatically.
 
+D3D8/D3DX8 headers are vendored in `third_party/d3d8_include` — **no DirectX SDK**
+or `third_party/dxsdk8` download is required.
+
 SDL3 is expected via pkg-config (e.g. install to `/opt/sdl3` and set
 `PKG_CONFIG_PATH=/opt/sdl3/lib/pkgconfig`).
 

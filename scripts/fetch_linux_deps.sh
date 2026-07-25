@@ -35,7 +35,9 @@ ln -sfn "$DEPS/stb" "$TP/stb"
 ln -sfn "$DEPS/imgui" "$TP/imgui"
 mkdir -p "$TP/vma"
 ln -sfn "$DEPS/VulkanMemoryAllocator/include" "$TP/vma/include"
-ln -sfn "$DEPS/CnC_Renegade-main/third_party/dxsdk8" "$TP/dxsdk8"
+ln -sfn "$DEPS/CnC_Renegade-main/third_party/dxsdk8" "$TP/dxsdk8" 2>/dev/null || true
+
+# D3D8/D3DX8 headers are vendored in third_party/d3d8_include (no external SDK required).
 
 # Minimal DXVK native windows shims (already in-tree if present).
 mkdir -p "$TP/dxvk/include/native/windows"
@@ -43,18 +45,19 @@ if [[ ! -f "$TP/dxvk/include/native/windows/windows.h" ]]; then
   echo "WARNING: third_party/dxvk shims missing; ensure they are committed or restored."
 fi
 
-# Case-insensitive D3DX header aliases for Linux.
-COMPAT="$TP/dxsdk8/include_compat"
-if [[ -d "$TP/dxsdk8/include" ]]; then
+# Case-insensitive D3DX header aliases for Linux (optional refresh if d3d8_include changes).
+COMPAT="$TP/d3d8_include_compat"
+INC="$TP/d3d8_include"
+if [[ -d "$INC" ]]; then
   mkdir -p "$COMPAT"
-  for base in D3DX8Math.h D3DX8Core.h D3DX8Tex.h; do
-    src="$(find "$TP/dxsdk8/include" -iname "$base" | head -1 || true)"
-    if [[ -n "$src" ]]; then
-      for alias in "$base" "${base,,}" "${base^}" "$(echo "$base" | sed 's/DX/Dx/;s/Math/math/;s/Core/core/;s/Tex/tex/')"; do
-        ln -sfn "$src" "$COMPAT/$alias" 2>/dev/null || cp -n "$src" "$COMPAT/$alias" 2>/dev/null || true
-      done
-    fi
+  for f in d3dx8math.h d3dx8core.h d3dx8tex.h; do
+    for alias in "$f" "${f^}" "$(echo "$f" | sed 's/d3/D3/;s/x8/X8/')"; do
+      ln -sfn "../d3d8_include/$f" "$COMPAT/$alias"
+    done
   done
+  ln -sfn "../d3d8_include/d3dx8math.h" "$COMPAT/Dx8math.h"
+  ln -sfn "../d3d8_include/d3dx8core.h" "$COMPAT/Dx8core.h"
+  ln -sfn "../d3d8_include/d3dx8tex.h" "$COMPAT/Dx8tex.h"
 fi
 
 # RenderDoc app header (single file).

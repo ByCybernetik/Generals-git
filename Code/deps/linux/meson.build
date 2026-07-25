@@ -1,15 +1,15 @@
-# Linux deps: SDL3 + Vulkan + vendored D3D8 headers (from Renegade third_party/).
+# Linux deps: SDL3 + Vulkan + in-tree D3D8 headers (no external DirectX SDK).
 
 sdl3_dep = dependency('sdl3', required : true)
 vulkan_dep = dependency('vulkan', required : true)
 
-_dxsdk8_inc_path = meson.project_source_root() / 'third_party' / 'dxsdk8' / 'include'
-_dxsdk8_compat_path = meson.project_source_root() / 'third_party' / 'dxsdk8' / 'include_compat'
+_d3d8_inc_path = meson.project_source_root() / 'third_party' / 'd3d8_include'
+_d3d8_compat_path = meson.project_source_root() / 'third_party' / 'd3d8_include_compat'
 _dxvk_native_windows_inc_path = meson.project_source_root() / 'third_party' / 'dxvk' / 'include' / 'native' / 'windows'
 
 _d3d_header_inc_args = [
-  '-I' + _dxsdk8_inc_path,
-  '-I' + _dxsdk8_compat_path,
+  '-I' + _d3d8_inc_path,
+  '-I' + _d3d8_compat_path,
   '-I' + _dxvk_native_windows_inc_path,
 ]
 
