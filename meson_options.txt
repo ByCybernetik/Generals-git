@@ -16,3 +16,8 @@ option('disable_bink', type : 'boolean', value : false,
 
 option('renegade_port_path', type : 'string', value : '../CnC_Renegade-main',
   description : 'Path to CnC_Renegade-main (third_party/ and wwutil/linux stubs)')
+
+option('bundled_ffmpeg', type : 'combo',
+  choices : ['auto', 'bundled', 'system'],
+  value : 'auto',
+  description : 'FFmpeg: auto-detect third_party/ffmpeg/install, force bundled, or system pkg-config')

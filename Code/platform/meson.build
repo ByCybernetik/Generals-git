@@ -35,13 +35,7 @@ platform_lib = static_library(
   platform_sources,
   include_directories : platform_inc,
   cpp_args : _platform_cpp,
-  dependencies : [sdl3_dep] + (get_option('disable_bink') ? [] : [
-    dependency('libavcodec'),
-    dependency('libavformat'),
-    dependency('libavutil'),
-    dependency('libswscale'),
-    dependency('libswresample'),
-  ]),
+  dependencies : [sdl3_dep] + (get_option('disable_bink') ? [] : _ffmpeg_bink_deps),
   install : false,
 )
 
