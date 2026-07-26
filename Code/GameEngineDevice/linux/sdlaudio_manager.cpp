@@ -2357,7 +2357,7 @@ Bool SDLAudioManager::openStreamForMusic(AudioEventRTS *event)
 	fmt->pb = avio;
 	fmt->flags |= AVFMT_FLAG_CUSTOM_IO;
 
-	if (!mem_audio_open_input(&fmt, &memIO, filename.str())) {
+	if (!mem_audio_open_input(&fmt, memIO, filename.str())) {
 		avformat_close_input(&fmt);
 		delete[] fileData;
 		return false;
