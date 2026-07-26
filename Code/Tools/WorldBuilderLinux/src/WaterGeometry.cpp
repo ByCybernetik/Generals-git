@@ -39,73 +39,52 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 		}
 	}
 
-	/* AFTERNOON settings — WB default daytime look */
-	UnsignedInt waterDiffuse = 0xffb9b9b9;
-	if (WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor.alpha ||
-		WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor.red)
+	TimeOfDay tod = TIME_OF_DAY_AFTERNOON;
+	if (TheGlobalData && TheGlobalData->m_timeOfDay >= 0
+		&& TheGlobalData->m_timeOfDay < TIME_OF_DAY_COUNT)
+		tod = TheGlobalData->m_timeOfDay;
+
+	const RGBAColorInt *waterColor = &WaterSettings[tod].m_waterDiffuseColor;
+	if (waterColor->alpha == 0)
+		waterColor = &WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor;
+
+	/* Some retail Water.ini diffuse entries are deliberately black because
+	 * the original pixel shader adds sparkle/noise stages. Prefer the
+	 * transparent-water tint when available; otherwise use WB's neutral tint
+	 * so the reduced two-texture Vulkan shader never produces black water. */
+	const RGBAColorInt *tint = waterColor;
+	if (tint->red == 0 && tint->green == 0 && tint->blue == 0)
 	{
-		const RGBAColorInt &c = WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor;
-		waterDiffuse = (c.alpha << 24) | (c.red << 16) | (c.green << 8) | c.blue;
+		const RGBAColorInt *transparent = &WaterSettings[tod].m_transparentWaterDiffuse;
+		if (transparent->red || transparent->green || transparent->blue)
+			tint = transparent;
+		else
+			tint = NULL;
 	}
 
-	const float waterShadeR = (waterDiffuse & 0xff) / 255.f;
-	const float waterShadeG = ((waterDiffuse >> 8) & 0xff) / 255.f;
-	const float waterShadeB = ((waterDiffuse >> 16) & 0xff) / 255.f;
-	outA = ((waterDiffuse >> 24) & 0xff) / 255.f;
+	const float waterShadeR = tint ? tint->red / 255.f : 0.46f;
+	const float waterShadeG = tint ? tint->green / 255.f : 0.58f;
+	const float waterShadeB = tint ? tint->blue / 255.f : 0.68f;
+	outA = waterColor->alpha ? waterColor->alpha / 255.f : 0.72f;
 
+	/* EditorApp does not construct the original WbView3d lighting scene, so
+	 * terrain ambient/global-light values may still be zero. The D3D path
+	 * receives scene lighting before drawing; enforce an equivalent minimum
+	 * ambient contribution in the standalone Vulkan viewport. */
+	shadeR = std::max(shadeR, 0.55f);
+	shadeG = std::max(shadeG, 0.55f);
+	shadeB = std::max(shadeB, 0.55f);
 	outR = std::min(1.f, shadeR * waterShadeR);
 	outG = std::min(1.f, shadeG * waterShadeG);
 	outB = std::min(1.f, shadeB * waterShadeB);
-}
-
-float sampleTerrainZ(const WorldHeightMap *hm, float worldX, float worldY)
-{
-	if (!hm)
-		return 0.f;
-	const Int border = hm->getBorderSize();
-	const Int extentX = hm->getXExtent();
-	const Int extentY = hm->getYExtent();
-	Int iX = (Int)(worldX / MAP_XY_FACTOR) + border;
-	Int iY = (Int)(worldY / MAP_XY_FACTOR) + border;
-	if (iX < 0)
-		iX = 0;
-	if (iY < 0)
-		iY = 0;
-	if (iX >= extentX)
-		iX = extentX - 1;
-	if (iY >= extentY)
-		iY = extentY - 1;
-	return hm->getHeight(iX, iY) * MAP_HEIGHT_SCALE;
-}
-
-float softEdgeAlpha(const WorldHeightMap *hm, float x, float y, float waterZ, float baseA)
-{
-	float depthScale = 3.f;
-	float minOpacity = 1.f;
-	if (TheWaterTransparency)
-	{
-		depthScale = TheWaterTransparency->m_transparentWaterDepth;
-		minOpacity = TheWaterTransparency->m_minWaterOpacity;
-	}
-	if (depthScale <= 0.f)
-		return baseA;
-
-	const float terrainZ = sampleTerrainZ(hm, x, y);
-	const float depth = waterZ - terrainZ;
-	if (depth <= 0.f)
-		return 0.f;
-	const float transparentDepth = depthScale * minOpacity;
-	if (transparentDepth <= 0.f)
-		return baseA;
-	float t = depth / transparentDepth;
-	if (t > 1.f)
-		t = 1.f;
-	return baseA * t;
+	fprintf(stderr, "WaterGeometry: final tint rgba=(%.3f, %.3f, %.3f, %.3f), tod=%d\n",
+		outR, outG, outB, outA, (int)tod);
 }
 
 void appendTrapezoid(const WorldHeightMap *hm, const float points[4][3], float cr, float cg, float cb,
 	float ca, std::vector<WaterMeshVertex> &verts, std::vector<uint32_t> &indices)
 {
+	(void)hm;
 	/* Mirror WaterRenderObjClass::drawTrapezoidWater bilinear patch. */
 	float origin[3] = {points[0][0], points[0][1], points[0][2]};
 	float uVec1[3] = {points[1][0] - origin[0], points[1][1] - origin[1], points[1][2] - origin[2]};
@@ -154,10 +133,15 @@ void appendTrapezoid(const WorldHeightMap *hm, const float points[4][3], float c
 			v.pz = z;
 			v.u = x * ooWaterFactor;
 			v.v = y * ooWaterFactor;
+			v.u2 = x / kBumpSize;
+			v.v2 = (y + 0.3f * x) / kBumpSize;
 			v.r = cr;
 			v.g = cg;
 			v.b = cb;
-			v.a = softEdgeAlpha(hm, x, y, z, ca);
+			/* Original lake opacity is uniform; shoreline softness comes from
+			 * a separate terrain destination-alpha pass, not vertex depth. */
+			v.a = ca;
+			v.isRiver = 0.f;
 			verts.push_back(v);
 		}
 	}
@@ -211,6 +195,7 @@ void appendLake(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, float
 void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, float cg, float cb, float ca,
 	std::vector<WaterMeshVertex> &verts, std::vector<uint32_t> &indices)
 {
+	(void)hm;
 	if (!pTrig || pTrig->getNumPoints() < 4)
 		return;
 
@@ -222,8 +207,7 @@ void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, floa
 	Int innerNdx = pTrig->getRiverStart();
 	Int outerNdx = innerNdx + 1;
 	if (innerNdx < 0 || innerNdx >= pTrig->getNumPoints() - 1)
-		innerNdx = 0;
-	outerNdx = innerNdx + 1;
+		return;
 
 	Real endLen = 0;
 	Real totalLen = 0;
@@ -267,10 +251,14 @@ void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, floa
 		a.pz = (float)innerPt.z;
 		a.u = 0.5f; /* HEIGHT_TO_USE */
 		a.v = wobbleConst;
+		a.u2 = 1.f;
+		a.v2 = wobbleConst;
 		a.r = cr;
 		a.g = cg;
 		a.b = cb;
-		a.a = softEdgeAlpha(hm, a.px, a.py, a.pz, ca);
+		/* Original river edges are feathered by TWAlphaEdge, not terrain depth. */
+		a.a = ca;
+		a.isRiver = 1.f;
 		verts.push_back(a);
 
 		WaterMeshVertex b;
@@ -279,10 +267,13 @@ void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, floa
 		b.pz = (float)outerPt.z;
 		b.u = 0.f;
 		b.v = wobbleConst;
+		b.u2 = 0.f;
+		b.v2 = wobbleConst;
 		b.r = cr;
 		b.g = cg;
 		b.b = cb;
-		b.a = softEdgeAlpha(hm, b.px, b.py, b.pz, ca);
+		b.a = ca;
+		b.isRiver = 1.f;
 		verts.push_back(b);
 	}
 

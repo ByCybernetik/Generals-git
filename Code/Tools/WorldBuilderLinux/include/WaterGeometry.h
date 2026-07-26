@@ -12,7 +12,9 @@ struct WaterMeshVertex
 {
 	float px, py, pz;
 	float u, v;
+	float u2, v2;
 	float r, g, b, a;
+	float isRiver;
 };
 
 struct WaterBakeStats

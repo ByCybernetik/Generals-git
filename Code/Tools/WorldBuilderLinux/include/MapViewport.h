@@ -65,6 +65,18 @@ private:
 		float u, v;
 	};
 
+	struct TextureMipLevel
+	{
+		int width = 0;
+		int height = 0;
+		std::vector<unsigned char> rgba;
+	};
+
+	struct TextureData
+	{
+		std::vector<TextureMipLevel> mips;
+	};
+
 	struct RoadBatch
 	{
 		std::string texKey;
@@ -91,7 +103,9 @@ private:
 	{
 		float px, py, pz;
 		float u, v;
+		float u2, v2;
 		float r, g, b, a;
+		float isRiver;
 	};
 
 	enum TrackMode
@@ -114,12 +128,16 @@ private:
 	bool rebuildWater(VulkanHost &host, MapDocument &doc);
 	bool uploadBuffer(VulkanHost &host, VkBuffer &buf, VkDeviceMemory &mem, const void *data, VkDeviceSize size,
 		VkBufferUsageFlags usage);
+	bool uploadTextureImage(VulkanHost &host, const TextureData &texture,
+		VkImage &image, VkDeviceMemory &memory, VkImageView &view);
 	bool createDirtTexture(VulkanHost &host);
 	bool uploadAlbedoTexture(VulkanHost &host, const unsigned char *rgba, int w, int h);
+	bool uploadMipmappedAlbedoTexture(VulkanHost &host, const unsigned char *rgba, int w, int h);
 	void destroyAlbedoTexture(VulkanHost &host);
-	bool loadRoadRgba(const char *texName, std::vector<unsigned char> &rgba, int &w, int &h);
-	bool uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const unsigned char *rgba, int w, int h);
-	bool uploadObjectTexture(VulkanHost &host, ObjectBatch &batch, const unsigned char *rgba, int w, int h);
+	void completeMipChain(TextureData &texture);
+	bool loadRoadTexture(const char *texName, TextureData &texture);
+	bool uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const TextureData &texture);
+	bool uploadObjectTexture(VulkanHost &host, ObjectBatch &batch, const TextureData &texture);
 	uint32_t findMemoryType(VulkanHost &host, uint32_t typeFilter, VkMemoryPropertyFlags props);
 
 	void scrollInView(float dxCells, float dyCells);
@@ -221,5 +239,8 @@ private:
 	VkImage m_waterImage = VK_NULL_HANDLE;
 	VkDeviceMemory m_waterMem = VK_NULL_HANDLE;
 	VkImageView m_waterView = VK_NULL_HANDLE;
+	VkImage m_waterAlphaImage = VK_NULL_HANDLE;
+	VkDeviceMemory m_waterAlphaMem = VK_NULL_HANDLE;
+	VkImageView m_waterAlphaView = VK_NULL_HANDLE;
 	VkDescriptorSet m_waterDescSet = VK_NULL_HANDLE;
 };

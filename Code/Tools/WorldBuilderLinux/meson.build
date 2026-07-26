@@ -67,6 +67,7 @@ wb_linux_sources = files(
   'src/MapOpen.cpp',
   'src/HeightmapPreview.cpp',
   'src/MapViewport.cpp',
+  'src/DdsDecoder.cpp',
   'src/RoadGeometry.cpp',
   'src/ObjectMeshCache.cpp',
   'src/WaterGeometry.cpp',
@@ -134,3 +135,11 @@ worldbuilder_exe = executable(
 )
 
 summary('worldbuilder', worldbuilder_exe.full_path(), section : 'Targets')
+
+dds_decoder_test = executable(
+  'worldbuilder_dds_decoder_test',
+  files('src/DdsDecoder.cpp', 'tests/DdsDecoderTest.cpp'),
+  include_directories : include_directories('include'),
+  install : false,
+)
+test('worldbuilder dds decoder', dds_decoder_test)
