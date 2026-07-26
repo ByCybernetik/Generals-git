@@ -45,10 +45,15 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 		tod = TheGlobalData->m_timeOfDay;
 
 	UnsignedInt waterDiffuse = 0xffb9b9b9;
-	if (WaterSettings[tod].m_waterDiffuseColor.alpha ||
-		WaterSettings[tod].m_waterDiffuseColor.red)
+	const RGBAColorInt *waterColor = &WaterSettings[tod].m_waterDiffuseColor;
+	/* EditorApp may not initialize every TOD slot. An all-zero/zero-alpha
+	 * entry made the entire water mesh invisible after switching from the
+	 * previous hardcoded afternoon slot. */
+	if (waterColor->alpha == 0)
+		waterColor = &WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor;
+	if (waterColor->alpha)
 	{
-		const RGBAColorInt &c = WaterSettings[tod].m_waterDiffuseColor;
+		const RGBAColorInt &c = *waterColor;
 		waterDiffuse = (c.alpha << 24) | (c.red << 16) | (c.green << 8) | c.blue;
 	}
 

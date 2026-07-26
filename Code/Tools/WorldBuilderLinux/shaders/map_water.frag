@@ -11,7 +11,12 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    vec4 c = texture(texWater, vUV) * vColor;
+    vec4 texel = texture(texWater, vUV);
+    vec4 c;
+    c.rgb = texel.rgb * vColor.rgb;
+    /* Original setupFlatWaterShader/setupJbaWaterShader uses
+       D3DTOP_ADD for stage-0 alpha, not MODULATE. */
+    c.a = min(texel.a + vColor.a, 1.0);
     if (vIsRiver != 0)
         c.a *= texture(texAlphaEdge, vUV2).a;
     if (c.a < 0.01)
