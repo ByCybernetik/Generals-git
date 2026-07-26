@@ -67,9 +67,18 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 	const float waterShadeB = tint ? tint->blue / 255.f : 0.68f;
 	outA = waterColor->alpha ? waterColor->alpha / 255.f : 0.72f;
 
+	/* EditorApp does not construct the original WbView3d lighting scene, so
+	 * terrain ambient/global-light values may still be zero. The D3D path
+	 * receives scene lighting before drawing; enforce an equivalent minimum
+	 * ambient contribution in the standalone Vulkan viewport. */
+	shadeR = std::max(shadeR, 0.55f);
+	shadeG = std::max(shadeG, 0.55f);
+	shadeB = std::max(shadeB, 0.55f);
 	outR = std::min(1.f, shadeR * waterShadeR);
 	outG = std::min(1.f, shadeG * waterShadeG);
 	outB = std::min(1.f, shadeB * waterShadeB);
+	fprintf(stderr, "WaterGeometry: final tint rgba=(%.3f, %.3f, %.3f, %.3f), tod=%d\n",
+		outR, outG, outB, outA, (int)tod);
 }
 
 void appendTrapezoid(const WorldHeightMap *hm, const float points[4][3], float cr, float cg, float cb,

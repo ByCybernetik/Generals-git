@@ -16,7 +16,8 @@ void main()
     /* Retail TWWater01 can be nearly black: original PS adds sparkle/noise
        stages afterwards. Preserve the Water.ini tint while using the base
        texture as detail modulation in this reduced Vulkan path. */
-    c.rgb = clamp(vColor.rgb * (0.45 + 0.75 * texel.rgb), 0.0, 1.0);
+    vec3 waterTint = max(vColor.rgb, vec3(0.18, 0.28, 0.34));
+    c.rgb = clamp(waterTint * (0.55 + 0.65 * texel.rgb), 0.0, 1.0);
     /* Original setupFlatWaterShader/setupJbaWaterShader uses
        D3DTOP_ADD for stage-0 alpha, not MODULATE. */
     c.a = min(texel.a + vColor.a, 1.0);
