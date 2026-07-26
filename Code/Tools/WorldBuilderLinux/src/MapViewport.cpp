@@ -2426,6 +2426,32 @@ bool MapViewport::rebuildRoads(VulkanHost &host, MapDocument &doc)
 	for (auto &kv : byType)
 	{
 		const std::string &typeName = kv.first;
+		/*
+		 * W3DRoadBuffer::loadRoadsInVertexAndIndexBuffers draws pieces in
+		 * TCorner enum order. Roads have alpha blending and no depth writes,
+		 * therefore this order is part of the visual result at intersections.
+		 * The topology array itself is insertion-ordered (joins precede curves),
+		 * so reproduce the original ordering explicitly.
+		 */
+		auto roadDrawOrder = [](RoadDrawPiece::Kind kind) -> int {
+			switch (kind)
+			{
+			case RoadDrawPiece::Straight: return 0;   /* SEGMENT */
+			case RoadDrawPiece::Curve: return 1;      /* CURVE */
+			case RoadDrawPiece::Tee: return 2;        /* TEE */
+			case RoadDrawPiece::FourWay: return 3;    /* FOUR_WAY */
+			case RoadDrawPiece::YJoin: return 4;      /* THREE_WAY_Y */
+			case RoadDrawPiece::HJoin: return 5;      /* THREE_WAY_H */
+			case RoadDrawPiece::HJoinFlip: return 6;  /* THREE_WAY_H_FLIP */
+			case RoadDrawPiece::AlphaJoin: return 7;  /* ALPHA_JOIN */
+			default: return 8;
+			}
+		};
+		std::stable_sort(kv.second.begin(), kv.second.end(),
+			[&](const RoadDrawPiece *a, const RoadDrawPiece *b) {
+				return roadDrawOrder(a->kind) < roadDrawOrder(b->kind);
+			});
+
 		AsciiString texFile = "TRTwoLane.tga";
 		if (TheTerrainRoads)
 		{
@@ -2537,7 +2563,11 @@ bool MapViewport::rebuildRoads(VulkanHost &host, MapDocument &doc)
 				float dy = piece->y1 - piece->y0;
 				float len = sqrtf(dx * dx + dy * dy);
 				float vxl = 1.f, vyl = 0.f, nxl = 0.f, nyl = 1.f;
-				if (len >= 0.25f)
+				/* Match W3DRoadBuffer::loadTee/loadY/loadH/loadAlphaJoin:
+				 * only use the fallback when both components are shorter than
+				 * MIN_ROAD_SEGMENT, not when the vector's Euclidean length is. */
+				if (!(fabsf(dx) < 0.25f && fabsf(dy) < 0.25f)
+					&& len > 1e-6f)
 				{
 					vxl = dx / len;
 					vyl = dy / len;
@@ -2670,8 +2700,14 @@ bool MapViewport::rebuildRoads(VulkanHost &host, MapDocument &doc)
 				const float vOffset = 85.f / 512.f;
 				float dx = piece->x1 - piece->x0;
 				float dy = piece->y1 - piece->y0;
-				float rNx = piece->t0x - piece->x0;
-				float rNy = piece->t0y - piece->y0;
+				/*
+				 * Original preloadRoadSegment projects UVs using a normal
+				 * derived from the centerline. The top/bottom corners are
+				 * mitered positions only. Using (top-loc) as the UV normal
+				 * shears the atlas at every bend/intersection.
+				 */
+				float rNx = -dy;
+				float rNy = dx;
 				appendStrip(piece->b0x, piece->b0y, piece->b1x, piece->b1y, piece->t0x, piece->t0y, piece->t1x, piece->t1y,
 					piece->x0, piece->y0, rNx, rNy, dx, dy, uOffset, vOffset, scale, scale);
 			}
