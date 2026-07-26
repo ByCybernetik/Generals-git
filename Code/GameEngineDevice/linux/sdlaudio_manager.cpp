@@ -236,10 +236,6 @@ static int audio_resolve_channel_count(const AVCodecParameters *params,
 		return ctx->ch_layout.nb_channels;
 	if (params && params->ch_layout.nb_channels > 0)
 		return params->ch_layout.nb_channels;
-	if (ctx && ctx->channels > 0)
-		return ctx->channels;
-	if (params && params->channels > 0)
-		return params->channels;
 	return 0;
 }
 
