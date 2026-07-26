@@ -14,6 +14,7 @@
 #include "GameLogic/SidesList.h"
 #include "W3DDevice/GameClient/TileData.h"
 #include "W3DDevice/GameClient/TerrainTex.h"
+#include "TerrainLightingBake.h"
 
 #include <string.h>
 #include <vector>
@@ -66,6 +67,17 @@ public:
 		if (!self->ParseBlendTileData(file, info, userData))
 			return false;
 		self->m_gotBlend = (self->m_tileNdxes != NULL && self->m_numBitmapTiles > 0);
+		return true;
+	}
+
+	static Bool ParseLightingChunk(DataChunkInput &file, DataChunkInfo *info, void *userData)
+	{
+		(void)userData;
+		/* Writes into TheWritableGlobalData (same as WorldHeightMap::ParseLightingDataChunk). */
+		if (!ParseLightingDataChunk(file, info, NULL))
+			return false;
+		TerrainLightingBake::applyActiveTimeOfDay();
+		TerrainLightingBake::logActiveLights("MapDocument: GlobalLighting");
 		return true;
 	}
 
@@ -269,6 +281,12 @@ static Bool ParseObjectsForLoad(DataChunkInput &file, DataChunkInfo *info, void 
 	return ParseObjectsListChunk(file, info, ((MapLoadUserData *)userData)->objects);
 }
 
+static Bool ParseLightingForLoad(DataChunkInput &file, DataChunkInfo *info, void *userData)
+{
+	(void)userData;
+	return HeightOnlyMap::ParseLightingChunk(file, info, NULL);
+}
+
 MapDocument::MapDocument()
 	: m_heightMap(NULL), m_hasTiles(false)
 {
@@ -434,6 +452,7 @@ bool MapDocument::load(const AsciiString &path)
 		PolygonTrigger::deleteTriggers();
 		file.registerParser(AsciiString("HeightMapData"), AsciiString::TheEmptyString, ParseHeightForLoad);
 		file.registerParser(AsciiString("BlendTileData"), AsciiString::TheEmptyString, ParseBlendForLoad);
+		file.registerParser(AsciiString("GlobalLighting"), AsciiString::TheEmptyString, ParseLightingForLoad);
 		file.registerParser(AsciiString("ObjectsList"), AsciiString::TheEmptyString, ParseObjectsForLoad);
 		file.registerParser(AsciiString("PolygonTriggers"), AsciiString::TheEmptyString,
 			PolygonTrigger::ParsePolygonTriggersDataChunk);

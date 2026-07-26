@@ -145,8 +145,8 @@ bool findDiffuseStage(MeshModelClass *model, int &outPass, int &outStage)
 	return false;
 }
 
-void pushTransformedVert(ObjectBakedPart &part, const Vector3 &local, const Vector2 *uv,
-	const Matrix3D &tm)
+void pushTransformedVert(ObjectBakedPart &part, const Vector3 &local, const Vector3 *normal,
+	const Vector2 *uv, const Matrix3D &tm)
 {
 	Vector3 world;
 	Matrix3D::Transform_Vector(tm, local, &world);
@@ -154,6 +154,24 @@ void pushTransformedVert(ObjectBakedPart &part, const Vector3 &local, const Vect
 	v.px = world.X;
 	v.py = world.Y;
 	v.pz = world.Z;
+	if (normal)
+	{
+		Vector3 nWorld;
+		Matrix3D::Rotate_Vector(tm, *normal, &nWorld);
+		if (nWorld.Length2() > 1e-12f)
+			nWorld.Normalize();
+		else
+			nWorld.Set(0.f, 0.f, 1.f);
+		v.nx = nWorld.X;
+		v.ny = nWorld.Y;
+		v.nz = nWorld.Z;
+	}
+	else
+	{
+		v.nx = 0.f;
+		v.ny = 0.f;
+		v.nz = 1.f;
+	}
 	if (uv)
 	{
 		v.u = uv->X;
@@ -186,6 +204,7 @@ void appendMeshParts(ObjectBakedModel &out, MeshClass *mesh, const Matrix3D &tm)
 	const Vector3i *polys = model->Get_Polygon_Array();
 	if (!verts || !polys)
 		return;
+	const Vector3 *normals = model->Get_Vertex_Normal_Array();
 
 	int pass = 0;
 	int stage = 0;
@@ -217,9 +236,9 @@ void appendMeshParts(ObjectBakedModel &out, MeshClass *mesh, const Matrix3D &tm)
 			if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= vCount || i1 >= vCount || i2 >= vCount)
 				continue;
 			const uint32_t base = (uint32_t)part.verts.size();
-			pushTransformedVert(part, verts[i0], uvs ? &uvs[i0] : NULL, tm);
-			pushTransformedVert(part, verts[i1], uvs ? &uvs[i1] : NULL, tm);
-			pushTransformedVert(part, verts[i2], uvs ? &uvs[i2] : NULL, tm);
+			pushTransformedVert(part, verts[i0], normals ? &normals[i0] : NULL, uvs ? &uvs[i0] : NULL, tm);
+			pushTransformedVert(part, verts[i1], normals ? &normals[i1] : NULL, uvs ? &uvs[i1] : NULL, tm);
+			pushTransformedVert(part, verts[i2], normals ? &normals[i2] : NULL, uvs ? &uvs[i2] : NULL, tm);
 			part.indices.push_back(base);
 			part.indices.push_back(base + 1);
 			part.indices.push_back(base + 2);
@@ -250,6 +269,24 @@ void appendMeshParts(ObjectBakedModel &out, MeshClass *mesh, const Matrix3D &tm)
 		part.verts[i].px = world.X;
 		part.verts[i].py = world.Y;
 		part.verts[i].pz = world.Z;
+		if (normals)
+		{
+			Vector3 nWorld;
+			Matrix3D::Rotate_Vector(tm, normals[i], &nWorld);
+			if (nWorld.Length2() > 1e-12f)
+				nWorld.Normalize();
+			else
+				nWorld.Set(0.f, 0.f, 1.f);
+			part.verts[i].nx = nWorld.X;
+			part.verts[i].ny = nWorld.Y;
+			part.verts[i].nz = nWorld.Z;
+		}
+		else
+		{
+			part.verts[i].nx = 0.f;
+			part.verts[i].ny = 0.f;
+			part.verts[i].nz = 1.f;
+		}
 		if (uvs)
 		{
 			part.verts[i].u = uvs[i].X;

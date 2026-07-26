@@ -90,6 +90,9 @@ bool EditorApp::init(const char *gameDataDir)
 	initSubsystem(TheArchiveFileSystem, (ArchiveFileSystem *)new Win32BIGFileSystem);
 	initSubsystem(TheWritableGlobalData, new GlobalData(), "Data\\INI\\Default\\GameData.ini",
 		"Data\\INI\\GameData.ini");
+	/* GlobalData ctor runs setTimeOfDay before INI load; refresh active ambient/diffuse/pos. */
+	if (TheWritableGlobalData)
+		TheWritableGlobalData->setTimeOfDay(TheWritableGlobalData->m_timeOfDay);
 	initSubsystem(TheGameText, CreateGameTextInterface());
 	initSubsystem(TheAudio, (AudioManager *)(new SDLAudioManager()));
 	initSubsystem(TheScienceStore, new ScienceStore(), "Data\\INI\\Default\\Science.ini", "Data\\INI\\Science.ini");

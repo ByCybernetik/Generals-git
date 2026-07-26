@@ -11,15 +11,16 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    /* Vertex color: white = textured terrain, otherwise solid border lines. */
-    if (vColor.r < 0.99 || vColor.g < 0.99 || vColor.b < 0.99)
+    /* blend < 0: solid border/playable lines (unlit editor overlays). */
+    if (vBlend < 0.0)
     {
         outColor = vec4(vColor, 1.0);
         return;
     }
 
-    /* Original HeightMap: stage0=base UV, stage1=blend UV, diffuse.a = blend weight. */
+    /* Original HeightMap PRELIT: stage0=base UV, stage1=blend UV, modulate by baked diffuse. */
     vec3 base = texture(texSampler, vUV).rgb;
     vec3 blend = texture(texSampler, vUV2).rgb;
-    outColor = vec4(mix(base, blend, clamp(vBlend, 0.0, 1.0)), 1.0);
+    vec3 albedo = mix(base, blend, clamp(vBlend, 0.0, 1.0));
+    outColor = vec4(albedo * vColor, 1.0);
 }

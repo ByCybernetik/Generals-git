@@ -9,6 +9,7 @@
 struct ObjectMeshVertex
 {
 	float px, py, pz;
+	float nx, ny, nz; /* model-space normal after asset transform (unit length) */
 	float u, v;
 };
 

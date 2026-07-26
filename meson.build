@@ -47,6 +47,8 @@ generals_cpp_args = [
   '-Wno-strict-aliasing',
   '-Wno-parentheses',
   '-Wno-unused-parameter',
+  '-Wno-narrowing',
+  '-Wno-write-strings',
 ]
 add_global_arguments(generals_cpp_args, language : 'cpp')
 

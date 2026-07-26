@@ -63,6 +63,7 @@ private:
 	{
 		float px, py, pz;
 		float u, v;
+		float r, g, b; /* baked PRELIT diffuse (terrain static / object lights) */
 	};
 
 	struct TextureMipLevel

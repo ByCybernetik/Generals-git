@@ -71,6 +71,7 @@ wb_linux_sources = files(
   'src/RoadGeometry.cpp',
   'src/ObjectMeshCache.cpp',
   'src/WaterGeometry.cpp',
+  'src/TerrainLightingBake.cpp',
   'src/ui/MainUi.cpp',
 ) + imgui_sources
 

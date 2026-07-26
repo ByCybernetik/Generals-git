@@ -1,5 +1,6 @@
 #include "PreRTS.h"
 #include "WaterGeometry.h"
+#include "TerrainLightingBake.h"
 
 #include "Common/GlobalData.h"
 #include "Common/MapObject.h"
@@ -20,27 +21,10 @@ constexpr float kBumpSize = 50.f;     /* river UV along width (HEIGHT_TO_USE pat
 void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 {
 	float shadeR = 1.f, shadeG = 1.f, shadeB = 1.f;
-	if (TheGlobalData)
-	{
-		shadeR = TheGlobalData->m_terrainAmbient[0].red;
-		shadeG = TheGlobalData->m_terrainAmbient[0].green;
-		shadeB = TheGlobalData->m_terrainAmbient[0].blue;
-		for (Int lightIndex = 0; lightIndex < TheGlobalData->m_numGlobalLights; lightIndex++)
-		{
-			if (-TheGlobalData->m_terrainLightPos[lightIndex].z > 0)
-			{
-				shadeR += -TheGlobalData->m_terrainLightPos[lightIndex].z *
-					TheGlobalData->m_terrainDiffuse[lightIndex].red;
-				shadeG += -TheGlobalData->m_terrainLightPos[lightIndex].z *
-					TheGlobalData->m_terrainDiffuse[lightIndex].green;
-				shadeB += -TheGlobalData->m_terrainLightPos[lightIndex].z *
-					TheGlobalData->m_terrainDiffuse[lightIndex].blue;
-			}
-		}
-	}
+	TerrainLightingBake::bakeWaterShade(shadeR, shadeG, shadeB);
 
 	TimeOfDay tod = TIME_OF_DAY_AFTERNOON;
-	if (TheGlobalData && TheGlobalData->m_timeOfDay >= 0
+	if (TheGlobalData && TheGlobalData->m_timeOfDay >= TIME_OF_DAY_FIRST
 		&& TheGlobalData->m_timeOfDay < TIME_OF_DAY_COUNT)
 		tod = TheGlobalData->m_timeOfDay;
 
@@ -67,18 +51,18 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 	const float waterShadeB = tint ? tint->blue / 255.f : 0.68f;
 	outA = waterColor->alpha ? waterColor->alpha / 255.f : 0.72f;
 
-	/* EditorApp does not construct the original WbView3d lighting scene, so
-	 * terrain ambient/global-light values may still be zero. The D3D path
-	 * receives scene lighting before drawing; enforce an equivalent minimum
-	 * ambient contribution in the standalone Vulkan viewport. */
-	shadeR = std::max(shadeR, 0.55f);
-	shadeG = std::max(shadeG, 0.55f);
-	shadeB = std::max(shadeB, 0.55f);
+	/* Soft floor only when active lights are still unset (no INI / no map chunk). */
+	if (shadeR + shadeG + shadeB < 0.05f)
+	{
+		shadeR = std::max(shadeR, 0.55f);
+		shadeG = std::max(shadeG, 0.55f);
+		shadeB = std::max(shadeB, 0.55f);
+	}
 	outR = std::min(1.f, shadeR * waterShadeR);
 	outG = std::min(1.f, shadeG * waterShadeG);
 	outB = std::min(1.f, shadeB * waterShadeB);
-	fprintf(stderr, "WaterGeometry: final tint rgba=(%.3f, %.3f, %.3f, %.3f), tod=%d\n",
-		outR, outG, outB, outA, (int)tod);
+	fprintf(stderr, "WaterGeometry: final tint rgba=(%.3f, %.3f, %.3f, %.3f), tod=%d, shade=(%.3f,%.3f,%.3f)\n",
+		outR, outG, outB, outA, (int)tod, shadeR, shadeG, shadeB);
 }
 
 void appendTrapezoid(const WorldHeightMap *hm, const float points[4][3], float cr, float cg, float cb,

@@ -4,6 +4,7 @@
 #include "RoadGeometry.h"
 #include "ObjectMeshCache.h"
 #include "WaterGeometry.h"
+#include "TerrainLightingBake.h"
 #include "DdsDecoder.h"
 #include "Common/MapObject.h"
 #include "Common/GlobalData.h"
@@ -910,14 +911,15 @@ bool MapViewport::createPipelines(VulkanHost &host)
 		rbind.binding = 0;
 		rbind.stride = sizeof(RoadVertex);
 		rbind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		VkVertexInputAttributeDescription rattrs[2] = {};
+		VkVertexInputAttributeDescription rattrs[3] = {};
 		rattrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(RoadVertex, px)};
 		rattrs[1] = {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(RoadVertex, u)};
+		rattrs[2] = {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(RoadVertex, r)};
 		VkPipelineVertexInputStateCreateInfo rvi = {};
 		rvi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		rvi.vertexBindingDescriptionCount = 1;
 		rvi.pVertexBindingDescriptions = &rbind;
-		rvi.vertexAttributeDescriptionCount = 2;
+		rvi.vertexAttributeDescriptionCount = 3;
 		rvi.pVertexAttributeDescriptions = rattrs;
 
 		VkPipelineDepthStencilStateCreateInfo rds = ds;
@@ -978,14 +980,15 @@ bool MapViewport::createPipelines(VulkanHost &host)
 		obind.binding = 0;
 		obind.stride = sizeof(RoadVertex);
 		obind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		VkVertexInputAttributeDescription oattrs[2] = {};
+		VkVertexInputAttributeDescription oattrs[3] = {};
 		oattrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(RoadVertex, px)};
 		oattrs[1] = {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(RoadVertex, u)};
+		oattrs[2] = {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(RoadVertex, r)};
 		VkPipelineVertexInputStateCreateInfo ovi = {};
 		ovi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		ovi.vertexBindingDescriptionCount = 1;
 		ovi.pVertexBindingDescriptions = &obind;
-		ovi.vertexAttributeDescriptionCount = 2;
+		ovi.vertexAttributeDescriptionCount = 3;
 		ovi.pVertexAttributeDescriptions = oattrs;
 
 		VkPipelineDepthStencilStateCreateInfo ods = ds;
@@ -1909,6 +1912,9 @@ bool MapViewport::rebuildMesh(VulkanHost &host, MapDocument &doc)
 	if (w < 2 || h < 2)
 		return false;
 
+	TerrainLightingBake::applyActiveTimeOfDay();
+	TerrainLightingBake::logActiveLights("MapViewport: rebuildMesh");
+
 	m_mapW = w;
 	m_mapH = h;
 	m_border = border;
@@ -2010,12 +2016,19 @@ bool MapViewport::rebuildMesh(VulkanHost &host, MapDocument &doc)
 			const float y0 = (y - border) * MAP_XY_FACTOR;
 			const float y1 = (y + 1 - border) * MAP_XY_FACTOR;
 
-			/* Corners TL,TR,BR,BL matching getUVData / getAlphaUVData order. */
+			/* Corners TL,TR,BR,BL matching getUVData / getAlphaUVData order.
+			 * Vertex RGB = PRELIT diffuse from HeightMap::doTheLight / getStaticDiffuse. */
+			float lr[4], lg[4], lb[4];
+			TerrainLightingBake::bakeTerrainIndex(hm, x, y, lr[0], lg[0], lb[0]);
+			TerrainLightingBake::bakeTerrainIndex(hm, x + 1, y, lr[1], lg[1], lb[1]);
+			TerrainLightingBake::bakeTerrainIndex(hm, x + 1, y + 1, lr[2], lg[2], lb[2]);
+			TerrainLightingBake::bakeTerrainIndex(hm, x, y + 1, lr[3], lg[3], lb[3]);
+
 			Vertex corners[4];
-			corners[0] = {x0, y0, z00, U[0], V[0], UA[0], VA[0], 1.f, 1.f, 1.f, alpha[0] / 255.f};
-			corners[1] = {x1, y0, z10, U[1], V[1], UA[1], VA[1], 1.f, 1.f, 1.f, alpha[1] / 255.f};
-			corners[2] = {x1, y1, z11, U[2], V[2], UA[2], VA[2], 1.f, 1.f, 1.f, alpha[2] / 255.f};
-			corners[3] = {x0, y1, z01, U[3], V[3], UA[3], VA[3], 1.f, 1.f, 1.f, alpha[3] / 255.f};
+			corners[0] = {x0, y0, z00, U[0], V[0], UA[0], VA[0], lr[0], lg[0], lb[0], alpha[0] / 255.f};
+			corners[1] = {x1, y0, z10, U[1], V[1], UA[1], VA[1], lr[1], lg[1], lb[1], alpha[1] / 255.f};
+			corners[2] = {x1, y1, z11, U[2], V[2], UA[2], VA[2], lr[2], lg[2], lb[2], alpha[2] / 255.f};
+			corners[3] = {x0, y1, z01, U[3], V[3], UA[3], VA[3], lr[3], lg[3], lb[3], alpha[3] / 255.f};
 
 			/* FLIP_TRIANGLES — same rotation as HeightMapRenderObjClass::updateVB. */
 			if (flipForBlend)
@@ -2059,7 +2072,7 @@ bool MapViewport::rebuildMesh(VulkanHost &host, MapDocument &doc)
 			v[i].r = r;
 			v[i].g = g;
 			v[i].b = b;
-			v[i].blend = 0.f;
+			v[i].blend = -1.f; /* solid unlit editor overlay line */
 			v[i].pz = z + lift;
 		}
 		v[0].px = x0 - nx;
@@ -2564,6 +2577,11 @@ bool MapViewport::rebuildObjects(VulkanHost &host, MapDocument &doc)
 			out.pz = z + lz;
 			out.u = v.u;
 			out.v = v.v;
+			/* Rotate normal around Z (placement yaw), then bake object scene lights. */
+			const float nnx = c * v.nx - s * v.ny;
+			const float nny = s * v.nx + c * v.ny;
+			const float nnz = v.nz;
+			TerrainLightingBake::bakeObjectNormal(nnx, nny, nnz, out.r, out.g, out.b);
 			verts.push_back(out);
 		}
 		for (uint32_t idx : part.indices)
@@ -2735,6 +2753,8 @@ bool MapViewport::rebuildRoads(VulkanHost &host, MapDocument &doc)
 				const float across = (x - locX) * rNx + (y - locY) * rNy;
 				row[j].u = uOffset + along / (uScale * 4.f);
 				row[j].v = vOffset - across / (vScale * 4.f);
+				/* W3DRoadBuffer: diffuse from terrain getStaticDiffuse at road XY. */
+				TerrainLightingBake::bakeTerrainWorld(hm, x, y, row[j].r, row[j].g, row[j].b);
 			}
 			row[0].pz = maxZ + FLOAT_AMOUNT;
 			row[1].pz = maxZ + FLOAT_AMOUNT;
