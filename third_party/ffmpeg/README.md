@@ -18,7 +18,7 @@ Supported formats (decode only):
 |-----------|---------|----------|
 | Bink `.bik` | `bink` | `bink`, `binkaudio_dct`, `binkaudio_rdft` |
 | WebM | `matroska` / `webm` | `vp8`, `vp9`, `opus`, `vorbis` |
-| WAV | `wav` | PCM variants |
+| WAV | `wav` | PCM variants, MS ADPCM, IMA ADPCM |
 | MP3 | `mp3` | `mp3float` |
 | Ogg | `ogg` | `vorbis` |
 
