@@ -4,6 +4,7 @@
 #include "RoadGeometry.h"
 #include "ObjectMeshCache.h"
 #include "WaterGeometry.h"
+#include "DdsDecoder.h"
 #include "Common/MapObject.h"
 #include "Common/GlobalData.h"
 #include "Common/FileSystem.h"
@@ -1920,6 +1921,21 @@ bool MapViewport::loadRoadRgba(const char *texName, std::vector<unsigned char> &
 	candidates[5] = pathDiskPng;
 
 	auto tryDecode = [&](const unsigned char *data, Int sz) -> bool {
+		if (DdsDecoder::isDds(data, (size_t)sz))
+		{
+			DdsDecoder::Image image;
+			if (!DdsDecoder::decode(data, (size_t)sz, image))
+			{
+				fprintf(stderr, "MapViewport: unsupported or invalid DDS texture (%d bytes)\n", sz);
+				return false;
+			}
+			w = image.width;
+			h = image.height;
+			rgba.swap(image.rgba);
+			fprintf(stderr, "MapViewport: decoded DDS %dx%d %s\n",
+				w, h, DdsDecoder::formatName(image.format));
+			return true;
+		}
 		int channels = 0;
 		unsigned char *pixels = stbi_load_from_memory(data, sz, &w, &h, &channels, 4);
 		if (!pixels)
