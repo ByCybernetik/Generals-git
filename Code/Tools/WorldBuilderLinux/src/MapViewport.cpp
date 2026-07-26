@@ -188,6 +188,126 @@ bool MapViewport::uploadBuffer(VulkanHost &host, VkBuffer &buf, VkDeviceMemory &
 	return true;
 }
 
+bool MapViewport::uploadTextureImage(VulkanHost &host, const TextureData &texture,
+	VkImage &image, VkDeviceMemory &memory, VkImageView &view)
+{
+	if (texture.mips.empty())
+		return false;
+
+	const TextureMipLevel &base = texture.mips[0];
+	const uint32_t mipLevels = (uint32_t)texture.mips.size();
+	if (base.width < 1 || base.height < 1)
+		return false;
+
+	std::vector<unsigned char> stagingBytes;
+	std::vector<VkBufferImageCopy> regions;
+	for (uint32_t level = 0; level < mipLevels; ++level)
+	{
+		const TextureMipLevel &mip = texture.mips[level];
+		const size_t expected = (size_t)mip.width * mip.height * 4;
+		if (mip.width < 1 || mip.height < 1 || mip.rgba.size() != expected)
+			return false;
+		VkBufferImageCopy region = {};
+		region.bufferOffset = stagingBytes.size();
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = level;
+		region.imageSubresource.layerCount = 1;
+		region.imageExtent = {(uint32_t)mip.width, (uint32_t)mip.height, 1};
+		regions.push_back(region);
+		stagingBytes.insert(stagingBytes.end(), mip.rgba.begin(), mip.rgba.end());
+	}
+
+	VkBuffer staging = VK_NULL_HANDLE;
+	VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+	if (!uploadBuffer(host, staging, stagingMemory, stagingBytes.data(), stagingBytes.size(),
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT))
+		return false;
+
+	VkDevice dev = host.device();
+	VkImageCreateInfo ii = {};
+	ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	ii.imageType = VK_IMAGE_TYPE_2D;
+	ii.format = VK_FORMAT_R8G8B8A8_UNORM;
+	ii.extent = {(uint32_t)base.width, (uint32_t)base.height, 1};
+	ii.mipLevels = mipLevels;
+	ii.arrayLayers = 1;
+	ii.samples = VK_SAMPLE_COUNT_1_BIT;
+	ii.tiling = VK_IMAGE_TILING_OPTIMAL;
+	ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	if (vkCreateImage(dev, &ii, nullptr, &image) != VK_SUCCESS)
+		return false;
+
+	VkMemoryRequirements req;
+	vkGetImageMemoryRequirements(dev, image, &req);
+	VkMemoryAllocateInfo ai = {};
+	ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	ai.allocationSize = req.size;
+	ai.memoryTypeIndex = findMemoryType(host, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	if (vkAllocateMemory(dev, &ai, nullptr, &memory) != VK_SUCCESS)
+		return false;
+	vkBindImageMemory(dev, image, memory, 0);
+
+	VkCommandPool pool = host.uploadCommandPool();
+	VkCommandBuffer cmd;
+	VkCommandBufferAllocateInfo cai = {};
+	cai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cai.commandPool = pool;
+	cai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cai.commandBufferCount = 1;
+	vkAllocateCommandBuffers(dev, &cai, &cmd);
+	VkCommandBufferBeginInfo bi = {};
+	bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkBeginCommandBuffer(cmd, &bi);
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.levelCount = mipLevels;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+		0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+	vkCmdCopyBufferToImage(cmd, staging, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		(uint32_t)regions.size(), regions.data());
+
+	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		0, 0, nullptr, 0, nullptr, 1, &barrier);
+	vkEndCommandBuffer(cmd);
+	VkSubmitInfo si = {};
+	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	si.commandBufferCount = 1;
+	si.pCommandBuffers = &cmd;
+	vkQueueSubmit(host.queue(), 1, &si, VK_NULL_HANDLE);
+	vkQueueWaitIdle(host.queue());
+	vkFreeCommandBuffers(dev, pool, 1, &cmd);
+	vkDestroyBuffer(dev, staging, nullptr);
+	vkFreeMemory(dev, stagingMemory, nullptr);
+
+	VkImageViewCreateInfo vi = {};
+	vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	vi.image = image;
+	vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	vi.format = VK_FORMAT_R8G8B8A8_UNORM;
+	vi.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	vi.subresourceRange.levelCount = mipLevels;
+	vi.subresourceRange.layerCount = 1;
+	if (vkCreateImageView(dev, &vi, nullptr, &view) != VK_SUCCESS)
+		return false;
+	return true;
+}
+
 bool MapViewport::createDirtTexture(VulkanHost &host)
 {
 	destroyAlbedoTexture(host);
@@ -516,6 +636,62 @@ bool MapViewport::uploadAlbedoTexture(VulkanHost &host, const unsigned char *rgb
 		write.pImageInfo = &ii;
 		vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
 	}
+	return true;
+}
+
+bool MapViewport::uploadMipmappedAlbedoTexture(VulkanHost &host, const unsigned char *rgba, int w, int h)
+{
+	if (!rgba || w < 1 || h < 1)
+		return false;
+
+	TextureData texture;
+	TextureMipLevel base;
+	base.width = w;
+	base.height = h;
+	base.rgba.assign(rgba, rgba + (size_t)w * h * 4);
+	texture.mips.push_back(base);
+	completeMipChain(texture);
+
+	destroyAlbedoTexture(host);
+	if (!uploadTextureImage(host, texture, m_dirtImage, m_dirtMem, m_dirtView))
+		return false;
+
+	VkDevice dev = host.device();
+	if (m_dirtSampler != VK_NULL_HANDLE)
+		vkDestroySampler(dev, m_dirtSampler, nullptr);
+	m_dirtSampler = VK_NULL_HANDLE;
+
+	VkSamplerCreateInfo sci = {};
+	sci.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	sci.magFilter = VK_FILTER_LINEAR;
+	sci.minFilter = VK_FILTER_LINEAR;
+	sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	sci.minLod = 0.f;
+	sci.maxLod = VK_LOD_CLAMP_NONE;
+	/* Terrain atlas has separate tiles at its edges; never wrap across it. */
+	sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	if (vkCreateSampler(dev, &sci, nullptr, &m_dirtSampler) != VK_SUCCESS)
+		return false;
+
+	if (m_descSet != VK_NULL_HANDLE)
+	{
+		VkDescriptorImageInfo ii = {};
+		ii.sampler = m_dirtSampler;
+		ii.imageView = m_dirtView;
+		ii.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		VkWriteDescriptorSet write = {};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_descSet;
+		write.dstBinding = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.descriptorCount = 1;
+		write.pImageInfo = &ii;
+		vkUpdateDescriptorSets(dev, 1, &write, 0, nullptr);
+	}
+	fprintf(stderr, "MapViewport: terrain texture %dx%d (%zu generated mips)\n",
+		w, h, texture.mips.size());
 	return true;
 }
 
@@ -1688,7 +1864,7 @@ bool MapViewport::rebuildMesh(VulkanHost &host, MapDocument &doc)
 		int aw = 0, ah = 0;
 		if (doc.buildTerrainAtlas(atlas, aw, ah))
 		{
-			if (!uploadAlbedoTexture(host, atlas.data(), aw, ah))
+			if (!uploadMipmappedAlbedoTexture(host, atlas.data(), aw, ah))
 				fprintf(stderr, "MapViewport: atlas upload failed\n");
 			else
 				fprintf(stderr, "MapViewport: terrain atlas %dx%d\n", aw, ah);

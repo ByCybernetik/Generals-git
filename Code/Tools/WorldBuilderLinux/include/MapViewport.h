@@ -126,8 +126,11 @@ private:
 	bool rebuildWater(VulkanHost &host, MapDocument &doc);
 	bool uploadBuffer(VulkanHost &host, VkBuffer &buf, VkDeviceMemory &mem, const void *data, VkDeviceSize size,
 		VkBufferUsageFlags usage);
+	bool uploadTextureImage(VulkanHost &host, const TextureData &texture,
+		VkImage &image, VkDeviceMemory &memory, VkImageView &view);
 	bool createDirtTexture(VulkanHost &host);
 	bool uploadAlbedoTexture(VulkanHost &host, const unsigned char *rgba, int w, int h);
+	bool uploadMipmappedAlbedoTexture(VulkanHost &host, const unsigned char *rgba, int w, int h);
 	void destroyAlbedoTexture(VulkanHost &host);
 	void completeMipChain(TextureData &texture);
 	bool loadRoadTexture(const char *texName, TextureData &texture);
