@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <strings.h>
 #include <string>
 #include <vector>
 
@@ -153,15 +154,49 @@ static void Pcm_Cache_Store(const AsciiString &filename,
 	s_pcmCacheBytes += (size_t)size;
 }
 
+static const AVInputFormat *mem_audio_guess_format_by_extension(const char *filenameHint)
+{
+	if (!filenameHint || !filenameHint[0])
+		return NULL;
+
+	const char *ext = strrchr(filenameHint, '.');
+	if (!ext || !ext[1])
+		return NULL;
+	++ext;
+
+	static const struct {
+		const char *ext;
+		const char *fmt;
+	} kMap[] = {
+		{ "mp3", "mp3" },
+		{ "ogg", "ogg" },
+		{ "wav", "wav" },
+		{ "webm", "webm" },
+		{ "mkv", "matroska" },
+		{ NULL, NULL },
+	};
+
+	for (int i = 0; kMap[i].ext; ++i) {
+		if (strcasecmp(ext, kMap[i].ext) == 0)
+			return av_find_input_format(kMap[i].fmt);
+	}
+	return NULL;
+}
+
 static const AVInputFormat *mem_audio_probe_format(const MemAudioIO *io, const char *filenameHint)
 {
 	if (!io || !io->data || io->size <= 0)
 		return NULL;
 
-	AVProbeData probeData;
+	const AVInputFormat *byExt = mem_audio_guess_format_by_extension(filenameHint);
+	if (byExt)
+		return byExt;
+
+	AVProbeData probeData = {};
 	probeData.buf = (unsigned char *)io->data;
 	probeData.buf_size = io->size < 32768 ? io->size : 32768;
-	probeData.filename = filenameHint ? filenameHint : "";
+	probeData.filename = (filenameHint && filenameHint[0]) ? filenameHint : "";
+	probeData.mime_type = NULL;
 	return av_probe_input_format(&probeData, 1);
 }
 
