@@ -153,9 +153,38 @@ static void Pcm_Cache_Store(const AsciiString &filename,
 	s_pcmCacheBytes += (size_t)size;
 }
 
-static int audio_frame_channels(const AVFrame *frame)
+static int audio_input_sample_rate(const AVFrame *frame,
+	const AVCodecContext *codecCtx, const AVCodecParameters *params)
 {
-	return frame ? frame->ch_layout.nb_channels : 0;
+	if (frame && frame->sample_rate > 0)
+		return frame->sample_rate;
+	if (codecCtx && codecCtx->sample_rate > 0)
+		return codecCtx->sample_rate;
+	if (params && params->sample_rate > 0)
+		return params->sample_rate;
+	return 0;
+}
+
+static int audio_input_channels(const AVFrame *frame,
+	const AVCodecContext *codecCtx, const AVCodecParameters *params)
+{
+	if (frame && frame->ch_layout.nb_channels > 0)
+		return frame->ch_layout.nb_channels;
+	if (codecCtx && codecCtx->ch_layout.nb_channels > 0)
+		return codecCtx->ch_layout.nb_channels;
+	if (params && params->ch_layout.nb_channels > 0)
+		return params->ch_layout.nb_channels;
+	return 0;
+}
+
+static const AVChannelLayout *audio_valid_layout(const AVChannelLayout *layout)
+{
+	if (!layout || layout->nb_channels <= 0
+		|| layout->order == AV_CHANNEL_ORDER_UNSPEC
+		|| !av_channel_layout_check(layout)) {
+		return NULL;
+	}
+	return layout;
 }
 
 /*
@@ -164,27 +193,34 @@ static int audio_frame_channels(const AVFrame *frame)
  * frame. Build SWR only from an actual decoded frame.
  */
 static SwrContext *audio_create_swr_from_frame(const AVFrame *frame,
+	const AVCodecContext *codecCtx, const AVCodecParameters *params,
 	int outSampleRate, int outChannels)
 {
-	if (!frame || frame->sample_rate <= 0 || frame->format == AV_SAMPLE_FMT_NONE)
+	if (!frame || frame->format == AV_SAMPLE_FMT_NONE)
 		return NULL;
 
-	const int inChannels = audio_frame_channels(frame);
-	if (inChannels <= 0)
+	const int inRate = audio_input_sample_rate(frame, codecCtx, params);
+	const int inChannels = audio_input_channels(frame, codecCtx, params);
+	if (inRate <= 0 || inChannels <= 0)
 		return NULL;
 
 	AVChannelLayout inLayout = {};
 	AVChannelLayout outLayout = {};
-	if (av_channel_layout_check(&frame->ch_layout)
-		&& frame->ch_layout.order != AV_CHANNEL_ORDER_UNSPEC) {
-		if (av_channel_layout_copy(&inLayout, &frame->ch_layout) < 0)
+	const AVChannelLayout *sourceLayout = audio_valid_layout(&frame->ch_layout);
+	if (!sourceLayout && codecCtx)
+		sourceLayout = audio_valid_layout(&codecCtx->ch_layout);
+	if (!sourceLayout && params)
+		sourceLayout = audio_valid_layout(&params->ch_layout);
+
+	if (sourceLayout) {
+		if (av_channel_layout_copy(&inLayout, sourceLayout) < 0)
 			return NULL;
 	} else {
 		av_channel_layout_default(&inLayout, inChannels);
 	}
 
 	if (outSampleRate <= 0)
-		outSampleRate = frame->sample_rate;
+		outSampleRate = inRate;
 	if (outChannels <= 0)
 		outChannels = (inChannels == 1) ? 1 : 2;
 	av_channel_layout_default(&outLayout, outChannels);
@@ -193,7 +229,7 @@ static SwrContext *audio_create_swr_from_frame(const AVFrame *frame,
 	const int allocResult = swr_alloc_set_opts2(
 		&swr,
 		&outLayout, AV_SAMPLE_FMT_S16, outSampleRate,
-		&inLayout, (AVSampleFormat)frame->format, frame->sample_rate,
+		&inLayout, (AVSampleFormat)frame->format, inRate,
 		0, NULL);
 	av_channel_layout_uninit(&inLayout);
 	av_channel_layout_uninit(&outLayout);
@@ -1734,8 +1770,11 @@ void SDLAudioManager::flushStreamDecoderTail(SDLPlayingAudio *pa)
 	if (avcodec_send_packet(pa->m_codecCtx, NULL) >= 0) {
 		while (avcodec_receive_frame(pa->m_codecCtx, pa->m_aframe) == 0) {
 			if (!pa->m_swr) {
+				AVCodecParameters *params =
+					pa->m_formatCtx->streams[pa->m_avStreamIndex]->codecpar;
 				pa->m_swr = audio_create_swr_from_frame(
-					pa->m_aframe, m_targetSampleRate, m_targetChannels);
+					pa->m_aframe, pa->m_codecCtx, params,
+					m_targetSampleRate, m_targetChannels);
 				if (!pa->m_swr) {
 					av_frame_unref(pa->m_aframe);
 					continue;
@@ -2185,11 +2224,12 @@ Bool SDLAudioManager::loadAndDecodeAudio(const AsciiString& filename,
 			if (avcodec_send_packet(codecCtx, pkt) >= 0) {
 				while (avcodec_receive_frame(codecCtx, frame) == 0) {
 					if (!swr) {
-						outSampleRate = frame->sample_rate;
-						const int sourceChannels = audio_frame_channels(frame);
+						outSampleRate = audio_input_sample_rate(frame, codecCtx, params);
+						const int sourceChannels =
+							audio_input_channels(frame, codecCtx, params);
 						outChannels = (sourceChannels == 1) ? 1 : 2;
 						swr = audio_create_swr_from_frame(
-							frame, outSampleRate, outChannels);
+							frame, codecCtx, params, outSampleRate, outChannels);
 						if (!swr) {
 							av_frame_unref(frame);
 							continue;
@@ -2221,10 +2261,11 @@ Bool SDLAudioManager::loadAndDecodeAudio(const AsciiString& filename,
 	avcodec_send_packet(codecCtx, NULL);
 	while (avcodec_receive_frame(codecCtx, frame) == 0) {
 		if (!swr) {
-			outSampleRate = frame->sample_rate;
-			const int sourceChannels = audio_frame_channels(frame);
+			outSampleRate = audio_input_sample_rate(frame, codecCtx, params);
+			const int sourceChannels = audio_input_channels(frame, codecCtx, params);
 			outChannels = (sourceChannels == 1) ? 1 : 2;
-			swr = audio_create_swr_from_frame(frame, outSampleRate, outChannels);
+			swr = audio_create_swr_from_frame(
+				frame, codecCtx, params, outSampleRate, outChannels);
 			if (!swr) {
 				av_frame_unref(frame);
 				continue;
@@ -2490,13 +2531,16 @@ void SDLAudioManager::pushStreamData(SDLPlayingAudio *pa)
 			if (avcodec_send_packet(pa->m_codecCtx, pa->m_pkt) >= 0) {
 				while (avcodec_receive_frame(pa->m_codecCtx, pa->m_aframe) == 0) {
 					if (!pa->m_swr) {
+						AVCodecParameters *params =
+							pa->m_formatCtx->streams[pa->m_avStreamIndex]->codecpar;
 						pa->m_swr = audio_create_swr_from_frame(
-							pa->m_aframe, m_targetSampleRate, m_targetChannels);
+							pa->m_aframe, pa->m_codecCtx, params,
+							m_targetSampleRate, m_targetChannels);
 						if (!pa->m_swr) {
 							fprintf(stderr,
 								"SDL audio: invalid decoded frame (rate=%d channels=%d format=%d)\n",
-								pa->m_aframe->sample_rate,
-								audio_frame_channels(pa->m_aframe),
+								audio_input_sample_rate(pa->m_aframe, pa->m_codecCtx, params),
+								audio_input_channels(pa->m_aframe, pa->m_codecCtx, params),
 								pa->m_aframe->format);
 							av_frame_unref(pa->m_aframe);
 							continue;
