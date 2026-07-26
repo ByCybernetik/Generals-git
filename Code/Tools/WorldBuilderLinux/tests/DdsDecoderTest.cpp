@@ -106,11 +106,42 @@ static bool testBgra()
 		&& pixelIs(image, 1, 0, 1, 2, 3, 4);
 }
 
+static bool testPaddedRgb24()
+{
+	std::vector<unsigned char> data(128 + 8, 0);
+	putU32(data, 0, fourcc('D', 'D', 'S', ' '));
+	putU32(data, 4, 124);
+	putU32(data, 12, 2);
+	putU32(data, 16, 1);
+	putU32(data, 20, 4); /* DDS row pitch includes one padding byte. */
+	putU32(data, 76, 32);
+	putU32(data, 80, 0x40);
+	putU32(data, 88, 24);
+	putU32(data, 92, 0x00ff0000);
+	putU32(data, 96, 0x0000ff00);
+	putU32(data, 100, 0x000000ff);
+	const unsigned char pixels[8] = { 30, 20, 10, 0, 3, 2, 1, 0 };
+	memcpy(&data[128], pixels, sizeof(pixels));
+	DdsDecoder::Image image;
+	return DdsDecoder::decode(data.data(), data.size(), image)
+		&& pixelIs(image, 0, 0, 10, 20, 30, 255)
+		&& pixelIs(image, 0, 1, 1, 2, 3, 255);
+}
+
+static bool testRejectsTruncatedDxt()
+{
+	const unsigned char block[7] = {};
+	const std::vector<unsigned char> dds = compressedDds("DXT1", block, sizeof(block));
+	DdsDecoder::Image image;
+	return !DdsDecoder::decode(dds.data(), dds.size(), image);
+}
+
 } // namespace
 
 int main()
 {
-	if (!testDxt1() || !testDxt3() || !testDxt5() || !testBgra())
+	if (!testDxt1() || !testDxt3() || !testDxt5() || !testBgra()
+		|| !testPaddedRgb24() || !testRejectsTruncatedDxt())
 	{
 		fprintf(stderr, "DDS decoder test failed\n");
 		return 1;

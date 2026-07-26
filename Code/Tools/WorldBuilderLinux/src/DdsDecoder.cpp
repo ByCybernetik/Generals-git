@@ -204,18 +204,21 @@ static unsigned char extractMasked(uint32_t pixel, uint32_t mask, unsigned char 
 }
 
 static bool decodeRgb(const unsigned char *src, size_t srcSize, unsigned bits,
-	uint32_t rMask, uint32_t gMask, uint32_t bMask, uint32_t aMask, Image &out)
+	uint32_t rMask, uint32_t gMask, uint32_t bMask, uint32_t aMask,
+	size_t sourcePitch, Image &out)
 {
 	if (bits != 16 && bits != 24 && bits != 32)
 		return false;
 	const size_t bytesPerPixel = bits / 8;
 	const size_t rowBytes = (size_t)out.width * bytesPerPixel;
-	if ((size_t)out.height > srcSize / rowBytes)
+	if (sourcePitch < rowBytes)
+		sourcePitch = rowBytes;
+	if ((size_t)out.height > srcSize / sourcePitch)
 		return false;
 
 	for (int y = 0; y < out.height; ++y)
 	{
-		const unsigned char *row = src + (size_t)y * rowBytes;
+		const unsigned char *row = src + (size_t)y * sourcePitch;
 		for (int x = 0; x < out.width; ++x)
 		{
 			uint32_t pixel = 0;
@@ -247,6 +250,7 @@ bool decode(const unsigned char *data, size_t size, Image &out)
 
 	const uint32_t height = readU32(data + 12);
 	const uint32_t width = readU32(data + 16);
+	const uint32_t pitchOrLinearSize = readU32(data + 20);
 	if (!width || !height || width > 32768 || height > 32768
 		|| (size_t)width > std::numeric_limits<size_t>::max() / height / 4)
 		return false;
@@ -323,7 +327,8 @@ bool decode(const unsigned char *data, size_t size, Image &out)
 	if (format >= FORMAT_DXT1 && format <= FORMAT_DXT5)
 		return decodeBlocks(pixels, pixelsSize, out);
 	if (format == FORMAT_RGB || format == FORMAT_RGBA)
-		return decodeRgb(pixels, pixelsSize, bits, rMask, gMask, bMask, aMask, out);
+		return decodeRgb(pixels, pixelsSize, bits, rMask, gMask, bMask, aMask,
+			pitchOrLinearSize, out);
 	return false;
 }
 
