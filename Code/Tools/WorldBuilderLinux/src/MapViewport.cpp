@@ -748,7 +748,7 @@ bool MapViewport::createPipelines(VulkanHost &host)
 	}
 
 	{
-		VkDescriptorSetLayoutBinding binds[2] = {};
+		VkDescriptorSetLayoutBinding binds[3] = {};
 		binds[0].binding = 0;
 		binds[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		binds[0].descriptorCount = 1;
@@ -757,9 +757,13 @@ bool MapViewport::createPipelines(VulkanHost &host)
 		binds[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		binds[1].descriptorCount = 1;
 		binds[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		binds[2].binding = 2;
+		binds[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		binds[2].descriptorCount = 1;
+		binds[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		VkDescriptorSetLayoutCreateInfo dci = {};
 		dci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		dci.bindingCount = 2;
+		dci.bindingCount = 3;
 		dci.pBindings = binds;
 		vkCreateDescriptorSetLayout(dev, &dci, nullptr, &m_dsl);
 
@@ -1043,15 +1047,17 @@ bool MapViewport::createPipelines(VulkanHost &host)
 		wbind.binding = 0;
 		wbind.stride = sizeof(WaterVertex);
 		wbind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		VkVertexInputAttributeDescription wattrs[3] = {};
+		VkVertexInputAttributeDescription wattrs[5] = {};
 		wattrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(WaterVertex, px)};
 		wattrs[1] = {1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(WaterVertex, u)};
-		wattrs[2] = {2, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(WaterVertex, r)};
+		wattrs[2] = {2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(WaterVertex, u2)};
+		wattrs[3] = {3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(WaterVertex, r)};
+		wattrs[4] = {4, 0, VK_FORMAT_R32_SFLOAT, offsetof(WaterVertex, isRiver)};
 		VkPipelineVertexInputStateCreateInfo wvi = {};
 		wvi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		wvi.vertexBindingDescriptionCount = 1;
 		wvi.pVertexBindingDescriptions = &wbind;
-		wvi.vertexAttributeDescriptionCount = 3;
+		wvi.vertexAttributeDescriptionCount = 5;
 		wvi.pVertexAttributeDescriptions = wattrs;
 
 		VkPipelineDepthStencilStateCreateInfo wds = ds;
@@ -1106,7 +1112,7 @@ bool MapViewport::createPipelines(VulkanHost &host)
 	{
 		VkDescriptorPoolSize sizes[2] = {};
 		sizes[0] = {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256};
-		sizes[1] = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256};
+		sizes[1] = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 512};
 		VkDescriptorPoolCreateInfo pci = {};
 		pci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		pci.maxSets = 256;
@@ -1311,6 +1317,21 @@ void MapViewport::destroyWater(VulkanHost &host)
 		vkFreeMemory(dev, m_waterMem, nullptr);
 		m_waterMem = VK_NULL_HANDLE;
 	}
+	if (m_waterAlphaView)
+	{
+		vkDestroyImageView(dev, m_waterAlphaView, nullptr);
+		m_waterAlphaView = VK_NULL_HANDLE;
+	}
+	if (m_waterAlphaImage)
+	{
+		vkDestroyImage(dev, m_waterAlphaImage, nullptr);
+		m_waterAlphaImage = VK_NULL_HANDLE;
+	}
+	if (m_waterAlphaMem)
+	{
+		vkFreeMemory(dev, m_waterAlphaMem, nullptr);
+		m_waterAlphaMem = VK_NULL_HANDLE;
+	}
 	m_waterDescSet = VK_NULL_HANDLE;
 	if (m_waterVbo)
 	{
@@ -1359,10 +1380,13 @@ bool MapViewport::rebuildWater(VulkanHost &host, MapDocument &doc)
 		verts[i].pz = bakedVerts[i].pz;
 		verts[i].u = bakedVerts[i].u;
 		verts[i].v = bakedVerts[i].v;
+		verts[i].u2 = bakedVerts[i].u2;
+		verts[i].v2 = bakedVerts[i].v2;
 		verts[i].r = bakedVerts[i].r;
 		verts[i].g = bakedVerts[i].g;
 		verts[i].b = bakedVerts[i].b;
 		verts[i].a = bakedVerts[i].a;
+		verts[i].isRiver = bakedVerts[i].isRiver;
 	}
 
 	/* Texture: TWWater01 like WaterRenderObjClass::setupFlatWaterShader. */
@@ -1404,6 +1428,45 @@ bool MapViewport::rebuildWater(VulkanHost &host, MapDocument &doc)
 	m_waterMem = tmp.mem;
 	m_waterView = tmp.view;
 	m_waterDescSet = tmp.descSet;
+
+	/* Original setupJbaWaterShader uses TWAlphaEdge on the river's second UV set. */
+	TextureData alphaTexture;
+	const char *alphaCandidates[] = {"TWAlphaEdge.tga", "TWAlphaEdge.dds", nullptr};
+	bool haveAlpha = false;
+	for (int i = 0; alphaCandidates[i]; ++i)
+	{
+		if (loadRoadTexture(alphaCandidates[i], alphaTexture))
+		{
+			haveAlpha = true;
+			break;
+		}
+	}
+	if (!haveAlpha)
+	{
+		TextureMipLevel mip;
+		mip.width = mip.height = 1;
+		mip.rgba.assign(4, 255);
+		alphaTexture.mips.push_back(mip);
+		fprintf(stderr, "MapViewport: TWAlphaEdge missing, river edge fallback is opaque\n");
+	}
+	if (!uploadTextureImage(host, alphaTexture,
+			m_waterAlphaImage, m_waterAlphaMem, m_waterAlphaView))
+	{
+		fprintf(stderr, "MapViewport: river alpha-edge upload failed\n");
+		return false;
+	}
+	VkDescriptorImageInfo alphaInfo = {};
+	alphaInfo.sampler = m_roadSampler;
+	alphaInfo.imageView = m_waterAlphaView;
+	alphaInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	VkWriteDescriptorSet alphaWrite = {};
+	alphaWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	alphaWrite.dstSet = m_waterDescSet;
+	alphaWrite.dstBinding = 2;
+	alphaWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	alphaWrite.descriptorCount = 1;
+	alphaWrite.pImageInfo = &alphaInfo;
+	vkUpdateDescriptorSets(host.device(), 1, &alphaWrite, 0, nullptr);
 
 	if (!uploadBuffer(host, m_waterVbo, m_waterVboMem, verts.data(), verts.size() * sizeof(WaterVertex),
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT))
@@ -3026,19 +3089,12 @@ void MapViewport::render(VulkanHost &host, int fbW, int fbH)
 	Mat4 mvp = proj * view;
 	float *ubo = (float *)m_uboMapped;
 	memcpy(ubo, mvp.m, sizeof(mvp.m));
-	/* Water UV scroll — Water.ini UScrollPerMS / VScrollPerMS (afternoon). */
-	float uRate = 0.002f, vRate = 0.002f;
-	if (WaterSettings[TIME_OF_DAY_AFTERNOON].m_uScrollPerMs != 0.f ||
-		WaterSettings[TIME_OF_DAY_AFTERNOON].m_vScrollPerMs != 0.f)
-	{
-		uRate = WaterSettings[TIME_OF_DAY_AFTERNOON].m_uScrollPerMs;
-		vRate = WaterSettings[TIME_OF_DAY_AFTERNOON].m_vScrollPerMs;
-	}
-	const float tMs = (float)(ImGui::GetTime() * 1000.0);
-	ubo[16] = tMs * uRate;
-	ubo[17] = tMs * vRate;
-	ubo[18] = 0.f;
-	ubo[19] = 0.f;
+	/* Original polygon water increments m_riverVOrigin by 0.002 per ~60 Hz
+	 * frame. Use elapsed time for frame-rate-independent equivalent motion. */
+	ubo[16] = 0.f;
+	ubo[17] = 0.f;
+	ubo[18] = (float)ImGui::GetTime() * 0.12f;
+	ubo[19] = MAP_XY_FACTOR;
 
 	VkDevice dev = host.device();
 	VkCommandPool pool = host.uploadCommandPool();

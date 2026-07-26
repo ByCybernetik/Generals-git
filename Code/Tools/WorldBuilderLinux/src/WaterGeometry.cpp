@@ -39,12 +39,16 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 		}
 	}
 
-	/* AFTERNOON settings — WB default daytime look */
+	TimeOfDay tod = TIME_OF_DAY_AFTERNOON;
+	if (TheGlobalData && TheGlobalData->m_timeOfDay >= 0
+		&& TheGlobalData->m_timeOfDay < TIME_OF_DAY_COUNT)
+		tod = TheGlobalData->m_timeOfDay;
+
 	UnsignedInt waterDiffuse = 0xffb9b9b9;
-	if (WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor.alpha ||
-		WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor.red)
+	if (WaterSettings[tod].m_waterDiffuseColor.alpha ||
+		WaterSettings[tod].m_waterDiffuseColor.red)
 	{
-		const RGBAColorInt &c = WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor;
+		const RGBAColorInt &c = WaterSettings[tod].m_waterDiffuseColor;
 		waterDiffuse = (c.alpha << 24) | (c.red << 16) | (c.green << 8) | c.blue;
 	}
 
@@ -58,54 +62,10 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 	outB = std::min(1.f, shadeB * waterShadeB);
 }
 
-float sampleTerrainZ(const WorldHeightMap *hm, float worldX, float worldY)
-{
-	if (!hm)
-		return 0.f;
-	const Int border = hm->getBorderSize();
-	const Int extentX = hm->getXExtent();
-	const Int extentY = hm->getYExtent();
-	Int iX = (Int)(worldX / MAP_XY_FACTOR) + border;
-	Int iY = (Int)(worldY / MAP_XY_FACTOR) + border;
-	if (iX < 0)
-		iX = 0;
-	if (iY < 0)
-		iY = 0;
-	if (iX >= extentX)
-		iX = extentX - 1;
-	if (iY >= extentY)
-		iY = extentY - 1;
-	return hm->getHeight(iX, iY) * MAP_HEIGHT_SCALE;
-}
-
-float softEdgeAlpha(const WorldHeightMap *hm, float x, float y, float waterZ, float baseA)
-{
-	float depthScale = 3.f;
-	float minOpacity = 1.f;
-	if (TheWaterTransparency)
-	{
-		depthScale = TheWaterTransparency->m_transparentWaterDepth;
-		minOpacity = TheWaterTransparency->m_minWaterOpacity;
-	}
-	if (depthScale <= 0.f)
-		return baseA;
-
-	const float terrainZ = sampleTerrainZ(hm, x, y);
-	const float depth = waterZ - terrainZ;
-	if (depth <= 0.f)
-		return 0.f;
-	const float transparentDepth = depthScale * minOpacity;
-	if (transparentDepth <= 0.f)
-		return baseA;
-	float t = depth / transparentDepth;
-	if (t > 1.f)
-		t = 1.f;
-	return baseA * t;
-}
-
 void appendTrapezoid(const WorldHeightMap *hm, const float points[4][3], float cr, float cg, float cb,
 	float ca, std::vector<WaterMeshVertex> &verts, std::vector<uint32_t> &indices)
 {
+	(void)hm;
 	/* Mirror WaterRenderObjClass::drawTrapezoidWater bilinear patch. */
 	float origin[3] = {points[0][0], points[0][1], points[0][2]};
 	float uVec1[3] = {points[1][0] - origin[0], points[1][1] - origin[1], points[1][2] - origin[2]};
@@ -154,10 +114,15 @@ void appendTrapezoid(const WorldHeightMap *hm, const float points[4][3], float c
 			v.pz = z;
 			v.u = x * ooWaterFactor;
 			v.v = y * ooWaterFactor;
+			v.u2 = x / kBumpSize;
+			v.v2 = (y + 0.3f * x) / kBumpSize;
 			v.r = cr;
 			v.g = cg;
 			v.b = cb;
-			v.a = softEdgeAlpha(hm, x, y, z, ca);
+			/* Original lake opacity is uniform; shoreline softness comes from
+			 * a separate terrain destination-alpha pass, not vertex depth. */
+			v.a = ca;
+			v.isRiver = 0.f;
 			verts.push_back(v);
 		}
 	}
@@ -211,6 +176,7 @@ void appendLake(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, float
 void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, float cg, float cb, float ca,
 	std::vector<WaterMeshVertex> &verts, std::vector<uint32_t> &indices)
 {
+	(void)hm;
 	if (!pTrig || pTrig->getNumPoints() < 4)
 		return;
 
@@ -222,8 +188,7 @@ void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, floa
 	Int innerNdx = pTrig->getRiverStart();
 	Int outerNdx = innerNdx + 1;
 	if (innerNdx < 0 || innerNdx >= pTrig->getNumPoints() - 1)
-		innerNdx = 0;
-	outerNdx = innerNdx + 1;
+		return;
 
 	Real endLen = 0;
 	Real totalLen = 0;
@@ -267,10 +232,14 @@ void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, floa
 		a.pz = (float)innerPt.z;
 		a.u = 0.5f; /* HEIGHT_TO_USE */
 		a.v = wobbleConst;
+		a.u2 = 1.f;
+		a.v2 = wobbleConst;
 		a.r = cr;
 		a.g = cg;
 		a.b = cb;
-		a.a = softEdgeAlpha(hm, a.px, a.py, a.pz, ca);
+		/* Original river edges are feathered by TWAlphaEdge, not terrain depth. */
+		a.a = ca;
+		a.isRiver = 1.f;
 		verts.push_back(a);
 
 		WaterMeshVertex b;
@@ -279,10 +248,13 @@ void appendRiver(const WorldHeightMap *hm, PolygonTrigger *pTrig, float cr, floa
 		b.pz = (float)outerPt.z;
 		b.u = 0.f;
 		b.v = wobbleConst;
+		b.u2 = 0.f;
+		b.v2 = wobbleConst;
 		b.r = cr;
 		b.g = cg;
 		b.b = cb;
-		b.a = softEdgeAlpha(hm, b.px, b.py, b.pz, ca);
+		b.a = ca;
+		b.isRiver = 1.f;
 		verts.push_back(b);
 	}
 

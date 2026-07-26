@@ -103,7 +103,9 @@ private:
 	{
 		float px, py, pz;
 		float u, v;
+		float u2, v2;
 		float r, g, b, a;
+		float isRiver;
 	};
 
 	enum TrackMode
@@ -237,5 +239,8 @@ private:
 	VkImage m_waterImage = VK_NULL_HANDLE;
 	VkDeviceMemory m_waterMem = VK_NULL_HANDLE;
 	VkImageView m_waterView = VK_NULL_HANDLE;
+	VkImage m_waterAlphaImage = VK_NULL_HANDLE;
+	VkDeviceMemory m_waterAlphaMem = VK_NULL_HANDLE;
+	VkImageView m_waterAlphaView = VK_NULL_HANDLE;
 	VkDescriptorSet m_waterDescSet = VK_NULL_HANDLE;
 };
