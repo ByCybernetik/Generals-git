@@ -63,7 +63,7 @@ if _ffmpeg_lib_names.length() > 0
   endif
 
   if _use_bundled
-    _ffmpeg_incdir = include_directories(_ffmpeg_install / 'include')
+    _ffmpeg_inc_args = ['-I' + (_ffmpeg_install / 'include')]
     _link_args = ['-L' + _ffmpeg_libdir, '-Wl,-Bstatic']
     foreach _lib : _ffmpeg_link_order
       if _lib in _ffmpeg_lib_names
@@ -72,7 +72,7 @@ if _ffmpeg_lib_names.length() > 0
     endforeach
     _link_args += ['-Wl,-Bdynamic', '-lpthread', '-lm']
     _ffmpeg_bundled_dep = declare_dependency(
-      include_directories : _ffmpeg_incdir,
+      compile_args : _ffmpeg_inc_args,
       link_args : _link_args,
     )
     _ffmpeg_deps = [_ffmpeg_bundled_dep]
