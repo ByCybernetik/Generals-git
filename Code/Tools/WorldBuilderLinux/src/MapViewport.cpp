@@ -1190,13 +1190,12 @@ bool MapViewport::rebuildWater(VulkanHost &host, MapDocument &doc)
 	}
 
 	/* Texture: TWWater01 like WaterRenderObjClass::setupFlatWaterShader. */
-	std::vector<unsigned char> rgba;
-	int tw = 0, th = 0;
+	TextureData texture;
 	const char *texCandidates[] = {"TWWater01.tga", "TWWater01.dds", "TSWater.tga", "TSWater.dds", nullptr};
 	bool haveTex = false;
 	for (int i = 0; texCandidates[i]; ++i)
 	{
-		if (loadRoadRgba(texCandidates[i], rgba, tw, th))
+		if (loadRoadTexture(texCandidates[i], texture))
 		{
 			haveTex = true;
 			break;
@@ -1204,20 +1203,23 @@ bool MapViewport::rebuildWater(VulkanHost &host, MapDocument &doc)
 	}
 	if (!haveTex)
 	{
-		tw = th = 4;
-		rgba.assign(64, 0);
+		TextureMipLevel mip;
+		mip.width = mip.height = 4;
+		mip.rgba.assign(64, 0);
 		for (int i = 0; i < 16; ++i)
 		{
-			rgba[(size_t)i * 4 + 0] = 40;
-			rgba[(size_t)i * 4 + 1] = 90;
-			rgba[(size_t)i * 4 + 2] = 140;
-			rgba[(size_t)i * 4 + 3] = 180;
+			mip.rgba[(size_t)i * 4 + 0] = 40;
+			mip.rgba[(size_t)i * 4 + 1] = 90;
+			mip.rgba[(size_t)i * 4 + 2] = 140;
+			mip.rgba[(size_t)i * 4 + 3] = 180;
 		}
+		texture.mips.push_back(mip);
+		completeMipChain(texture);
 		fprintf(stderr, "MapViewport: water texture missing, using solid fallback\n");
 	}
 
 	RoadBatch tmp;
-	if (!uploadRoadTexture(host, tmp, rgba.data(), tw, th))
+	if (!uploadRoadTexture(host, tmp, texture))
 	{
 		fprintf(stderr, "MapViewport: water texture upload failed\n");
 		return false;
@@ -1880,10 +1882,58 @@ bool MapViewport::rebuildMesh(VulkanHost &host, MapDocument &doc)
 	return true;
 }
 
-bool MapViewport::loadRoadRgba(const char *texName, std::vector<unsigned char> &rgba, int &w, int &h)
+void MapViewport::completeMipChain(TextureData &texture)
+{
+	if (texture.mips.empty())
+		return;
+
+	while (texture.mips.back().width > 1 || texture.mips.back().height > 1)
+	{
+		const TextureMipLevel &src = texture.mips.back();
+		TextureMipLevel dst;
+		dst.width = std::max(1, src.width / 2);
+		dst.height = std::max(1, src.height / 2);
+		dst.rgba.resize((size_t)dst.width * dst.height * 4);
+
+		for (int y = 0; y < dst.height; ++y)
+		{
+			for (int x = 0; x < dst.width; ++x)
+			{
+				uint64_t premul[3] = {0, 0, 0};
+				unsigned sumAlpha = 0;
+				unsigned samples = 0;
+				const int sy0 = y * src.height / dst.height;
+				const int sy1 = (y + 1) * src.height / dst.height;
+				const int sx0 = x * src.width / dst.width;
+				const int sx1 = (x + 1) * src.width / dst.width;
+				for (int sy = sy0; sy < sy1; ++sy)
+				{
+					for (int sx = sx0; sx < sx1; ++sx)
+					{
+						const size_t p = ((size_t)sy * src.width + sx) * 4;
+						const unsigned alpha = src.rgba[p + 3];
+						for (int c = 0; c < 3; ++c)
+							premul[c] += (uint64_t)src.rgba[p + c] * alpha;
+						sumAlpha += alpha;
+						++samples;
+					}
+				}
+				const size_t d = ((size_t)y * dst.width + x) * 4;
+				for (int c = 0; c < 3; ++c)
+					dst.rgba[d + c] = sumAlpha
+						? (unsigned char)((premul[c] + sumAlpha / 2) / sumAlpha) : 0;
+				dst.rgba[d + 3] = (unsigned char)((sumAlpha + samples / 2) / samples);
+			}
+		}
+		texture.mips.push_back(dst);
+	}
+}
+
+bool MapViewport::loadRoadTexture(const char *texName, TextureData &texture)
 {
 	if (!texName || !texName[0] || !TheFileSystem)
 		return false;
+	texture.mips.clear();
 
 	char base[256];
 	strncpy(base, texName, sizeof(base) - 1);
@@ -1929,19 +1979,31 @@ bool MapViewport::loadRoadRgba(const char *texName, std::vector<unsigned char> &
 				fprintf(stderr, "MapViewport: unsupported or invalid DDS texture (%d bytes)\n", sz);
 				return false;
 			}
-			w = image.width;
-			h = image.height;
-			rgba.swap(image.rgba);
-			fprintf(stderr, "MapViewport: decoded DDS %dx%d %s\n",
-				w, h, DdsDecoder::formatName(image.format));
+			for (size_t i = 0; i < image.mips.size(); ++i)
+			{
+				TextureMipLevel mip;
+				mip.width = image.mips[i].width;
+				mip.height = image.mips[i].height;
+				mip.rgba.swap(image.mips[i].rgba);
+				texture.mips.push_back(mip);
+			}
+			completeMipChain(texture);
+			fprintf(stderr, "MapViewport: decoded DDS %dx%d %s (%zu mips)\n",
+				image.width, image.height, DdsDecoder::formatName(image.format), texture.mips.size());
 			return true;
 		}
 		int channels = 0;
+		int w = 0, h = 0;
 		unsigned char *pixels = stbi_load_from_memory(data, sz, &w, &h, &channels, 4);
 		if (!pixels)
 			return false;
-		rgba.assign(pixels, pixels + (size_t)w * (size_t)h * 4);
+		TextureMipLevel mip;
+		mip.width = w;
+		mip.height = h;
+		mip.rgba.assign(pixels, pixels + (size_t)w * (size_t)h * 4);
+		texture.mips.push_back(mip);
 		stbi_image_free(pixels);
+		completeMipChain(texture);
 		return true;
 	};
 
@@ -1986,12 +2048,35 @@ bool MapViewport::loadRoadRgba(const char *texName, std::vector<unsigned char> &
 	return false;
 }
 
-bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const unsigned char *rgba, int w, int h)
+bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const TextureData &texture)
 {
-	if (!rgba || w < 1 || h < 1)
+	if (texture.mips.empty())
 		return false;
+	const int w = texture.mips[0].width;
+	const int h = texture.mips[0].height;
+	const uint32_t mipLevels = (uint32_t)texture.mips.size();
+	if (w < 1 || h < 1)
+		return false;
+
 	VkDevice dev = host.device();
-	const VkDeviceSize size = (VkDeviceSize)w * (VkDeviceSize)h * 4;
+	VkDeviceSize size = 0;
+	std::vector<VkBufferImageCopy> regions;
+	regions.reserve(mipLevels);
+	for (uint32_t level = 0; level < mipLevels; ++level)
+	{
+		const TextureMipLevel &mip = texture.mips[level];
+		const VkDeviceSize levelSize = (VkDeviceSize)mip.width * (VkDeviceSize)mip.height * 4;
+		if (mip.width < 1 || mip.height < 1 || mip.rgba.size() != (size_t)levelSize)
+			return false;
+		VkBufferImageCopy region = {};
+		region.bufferOffset = size;
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = level;
+		region.imageSubresource.layerCount = 1;
+		region.imageExtent = {(uint32_t)mip.width, (uint32_t)mip.height, 1};
+		regions.push_back(region);
+		size += levelSize;
+	}
 
 	VkBuffer staging = VK_NULL_HANDLE;
 	VkDeviceMemory stagingMem = VK_NULL_HANDLE;
@@ -2012,7 +2097,12 @@ bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const un
 		vkBindBufferMemory(dev, staging, stagingMem, 0);
 		void *mapped = nullptr;
 		vkMapMemory(dev, stagingMem, 0, size, 0, &mapped);
-		memcpy(mapped, rgba, (size_t)size);
+		unsigned char *dst = (unsigned char *)mapped;
+		for (uint32_t level = 0; level < mipLevels; ++level)
+		{
+			const TextureMipLevel &mip = texture.mips[level];
+			memcpy(dst + regions[level].bufferOffset, mip.rgba.data(), mip.rgba.size());
+		}
 		vkUnmapMemory(dev, stagingMem);
 	}
 
@@ -2022,7 +2112,7 @@ bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const un
 		ii.imageType = VK_IMAGE_TYPE_2D;
 		ii.format = VK_FORMAT_R8G8B8A8_UNORM;
 		ii.extent = {(uint32_t)w, (uint32_t)h, 1};
-		ii.mipLevels = 1;
+		ii.mipLevels = mipLevels;
 		ii.arrayLayers = 1;
 		ii.samples = VK_SAMPLE_COUNT_1_BIT;
 		ii.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -2060,17 +2150,14 @@ bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const un
 	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	barrier.image = batch.image;
 	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.levelCount = mipLevels;
 	barrier.subresourceRange.layerCount = 1;
 	barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
 		nullptr, 1, &barrier);
 
-	VkBufferImageCopy region = {};
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.layerCount = 1;
-	region.imageExtent = {(uint32_t)w, (uint32_t)h, 1};
-	vkCmdCopyBufferToImage(cmd, staging, batch.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	vkCmdCopyBufferToImage(cmd, staging, batch.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		(uint32_t)regions.size(), regions.data());
 
 	barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2095,7 +2182,7 @@ bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const un
 	vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	vi.format = VK_FORMAT_R8G8B8A8_UNORM;
 	vi.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	vi.subresourceRange.levelCount = 1;
+	vi.subresourceRange.levelCount = mipLevels;
 	vi.subresourceRange.layerCount = 1;
 	vkCreateImageView(dev, &vi, nullptr, &batch.view);
 
@@ -2105,6 +2192,9 @@ bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const un
 		sci.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		sci.magFilter = VK_FILTER_LINEAR;
 		sci.minFilter = VK_FILTER_LINEAR;
+		sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		sci.minLod = 0.f;
+		sci.maxLod = VK_LOD_CLAMP_NONE;
 		sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -2140,13 +2230,14 @@ bool MapViewport::uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const un
 	writes[1].descriptorCount = 1;
 	writes[1].pImageInfo = &ii;
 	vkUpdateDescriptorSets(dev, 2, writes, 0, nullptr);
+	fprintf(stderr, "MapViewport: uploaded texture %dx%d (%u mips)\n", w, h, mipLevels);
 	return true;
 }
 
-bool MapViewport::uploadObjectTexture(VulkanHost &host, ObjectBatch &batch, const unsigned char *rgba, int w, int h)
+bool MapViewport::uploadObjectTexture(VulkanHost &host, ObjectBatch &batch, const TextureData &texture)
 {
 	RoadBatch tmp;
-	if (!uploadRoadTexture(host, tmp, rgba, w, h))
+	if (!uploadRoadTexture(host, tmp, texture))
 		return false;
 	batch.image = tmp.image;
 	batch.mem = tmp.mem;
@@ -2246,21 +2337,23 @@ bool MapViewport::rebuildObjects(VulkanHost &host, MapDocument &doc)
 		batch.texKey = kv.first;
 		batch.indexOffset = (uint32_t)indices.size();
 
-		std::vector<unsigned char> rgba;
-		int tw = 0, th = 0;
+		TextureData texture;
 		bool haveTex = false;
 		if (kv.first != "__gray__")
-			haveTex = loadRoadRgba(kv.first.c_str(), rgba, tw, th);
+			haveTex = loadRoadTexture(kv.first.c_str(), texture);
 		if (!haveTex)
 		{
 			if (kv.first != "__gray__")
 				fprintf(stderr, "MapViewport: missing object texture '%s' (gray fallback)\n", kv.first.c_str());
-			tw = th = 4;
-			rgba.assign(64, 180);
+			TextureMipLevel mip;
+			mip.width = mip.height = 4;
+			mip.rgba.assign(64, 180);
 			for (int i = 3; i < 64; i += 4)
-				rgba[(size_t)i] = 255;
+				mip.rgba[(size_t)i] = 255;
+			texture.mips.push_back(mip);
+			completeMipChain(texture);
 		}
-		if (!uploadObjectTexture(host, batch, rgba.data(), tw, th))
+		if (!uploadObjectTexture(host, batch, texture))
 		{
 			fprintf(stderr, "MapViewport: object texture upload failed for %s\n", kv.first.c_str());
 			continue;
@@ -2464,14 +2557,13 @@ bool MapViewport::rebuildRoads(VulkanHost &host, MapDocument &doc)
 		batch.texKey = typeName;
 		batch.indexOffset = (uint32_t)indices.size();
 
-		std::vector<unsigned char> rgba;
-		int tw = 0, th = 0;
-		if (!loadRoadRgba(texFile.str(), rgba, tw, th))
+		TextureData texture;
+		if (!loadRoadTexture(texFile.str(), texture))
 		{
 			fprintf(stderr, "MapViewport: road texture missing for %s (%s)\n", typeName.c_str(), texFile.str());
 			continue;
 		}
-		if (!uploadRoadTexture(host, batch, rgba.data(), tw, th))
+		if (!uploadRoadTexture(host, batch, texture))
 		{
 			fprintf(stderr, "MapViewport: road texture upload failed for %s\n", typeName.c_str());
 			continue;

@@ -65,6 +65,18 @@ private:
 		float u, v;
 	};
 
+	struct TextureMipLevel
+	{
+		int width = 0;
+		int height = 0;
+		std::vector<unsigned char> rgba;
+	};
+
+	struct TextureData
+	{
+		std::vector<TextureMipLevel> mips;
+	};
+
 	struct RoadBatch
 	{
 		std::string texKey;
@@ -117,9 +129,10 @@ private:
 	bool createDirtTexture(VulkanHost &host);
 	bool uploadAlbedoTexture(VulkanHost &host, const unsigned char *rgba, int w, int h);
 	void destroyAlbedoTexture(VulkanHost &host);
-	bool loadRoadRgba(const char *texName, std::vector<unsigned char> &rgba, int &w, int &h);
-	bool uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const unsigned char *rgba, int w, int h);
-	bool uploadObjectTexture(VulkanHost &host, ObjectBatch &batch, const unsigned char *rgba, int w, int h);
+	void completeMipChain(TextureData &texture);
+	bool loadRoadTexture(const char *texName, TextureData &texture);
+	bool uploadRoadTexture(VulkanHost &host, RoadBatch &batch, const TextureData &texture);
+	bool uploadObjectTexture(VulkanHost &host, ObjectBatch &batch, const TextureData &texture);
 	uint32_t findMemoryType(VulkanHost &host, uint32_t typeFilter, VkMemoryPropertyFlags props);
 
 	void scrollInView(float dxCells, float dyCells);

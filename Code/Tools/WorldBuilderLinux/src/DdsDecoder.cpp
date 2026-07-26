@@ -79,7 +79,7 @@ static void buildColorTable(const unsigned char *block, bool allowTransparency,
 	}
 }
 
-static void writePixel(Image &out, unsigned x, unsigned y, const unsigned char rgba[4])
+static void writePixel(MipLevel &out, unsigned x, unsigned y, const unsigned char rgba[4])
 {
 	if (x >= (unsigned)out.width || y >= (unsigned)out.height)
 		return;
@@ -88,7 +88,7 @@ static void writePixel(Image &out, unsigned x, unsigned y, const unsigned char r
 }
 
 static void decodeColorBlock(const unsigned char *block, unsigned bx, unsigned by,
-	bool allowTransparency, Image &out, const unsigned char *alpha)
+	bool allowTransparency, MipLevel &out, const unsigned char *alpha)
 {
 	unsigned char colors[4][4];
 	buildColorTable(block, allowTransparency, colors);
@@ -141,7 +141,7 @@ static void decodeDxt5Alpha(const unsigned char *block, unsigned char alpha[16])
 		alpha[i] = table[(bits >> (i * 3)) & 7];
 }
 
-static void unpremultiply(Image &out)
+static void unpremultiply(MipLevel &out)
 {
 	for (size_t i = 0; i < out.rgba.size(); i += 4)
 	{
@@ -157,11 +157,11 @@ static void unpremultiply(Image &out)
 	}
 }
 
-static bool decodeBlocks(const unsigned char *src, size_t srcSize, Image &out)
+static bool decodeBlocks(const unsigned char *src, size_t srcSize, Format format, MipLevel &out)
 {
 	const unsigned blocksX = ((unsigned)out.width + 3) / 4;
 	const unsigned blocksY = ((unsigned)out.height + 3) / 4;
-	const size_t blockBytes = out.format == FORMAT_DXT1 ? 8 : 16;
+	const size_t blockBytes = format == FORMAT_DXT1 ? 8 : 16;
 	if ((size_t)blocksX > std::numeric_limits<size_t>::max() / blocksY
 		|| (size_t)blocksX * blocksY > srcSize / blockBytes)
 		return false;
@@ -171,14 +171,14 @@ static bool decodeBlocks(const unsigned char *src, size_t srcSize, Image &out)
 		for (unsigned bx = 0; bx < blocksX; ++bx)
 		{
 			const unsigned char *block = src + ((size_t)by * blocksX + bx) * blockBytes;
-			if (out.format == FORMAT_DXT1)
+			if (format == FORMAT_DXT1)
 			{
 				decodeColorBlock(block, bx, by, true, out, NULL);
 				continue;
 			}
 
 			unsigned char alpha[16];
-			if (out.format == FORMAT_DXT2 || out.format == FORMAT_DXT3)
+			if (format == FORMAT_DXT2 || format == FORMAT_DXT3)
 				decodeDxt3Alpha(block, alpha);
 			else
 				decodeDxt5Alpha(block, alpha);
@@ -186,7 +186,7 @@ static bool decodeBlocks(const unsigned char *src, size_t srcSize, Image &out)
 		}
 	}
 
-	if (out.format == FORMAT_DXT2 || out.format == FORMAT_DXT4)
+	if (format == FORMAT_DXT2 || format == FORMAT_DXT4)
 		unpremultiply(out);
 	return true;
 }
@@ -205,7 +205,7 @@ static unsigned char extractMasked(uint32_t pixel, uint32_t mask, unsigned char 
 
 static bool decodeRgb(const unsigned char *src, size_t srcSize, unsigned bits,
 	uint32_t rMask, uint32_t gMask, uint32_t bMask, uint32_t aMask,
-	size_t sourcePitch, Image &out)
+	size_t sourcePitch, MipLevel &out)
 {
 	if (bits != 16 && bits != 24 && bits != 32)
 		return false;
@@ -251,6 +251,7 @@ bool decode(const unsigned char *data, size_t size, Image &out)
 	const uint32_t height = readU32(data + 12);
 	const uint32_t width = readU32(data + 16);
 	const uint32_t pitchOrLinearSize = readU32(data + 20);
+	const uint32_t declaredMipCount = readU32(data + 28);
 	if (!width || !height || width > 32768 || height > 32768
 		|| (size_t)width > std::numeric_limits<size_t>::max() / height / 4)
 		return false;
@@ -320,16 +321,66 @@ bool decode(const unsigned char *data, size_t size, Image &out)
 	out.width = (int)width;
 	out.height = (int)height;
 	out.format = format;
-	out.rgba.assign((size_t)width * height * 4, 0);
 
-	const unsigned char *pixels = data + dataOffset;
-	const size_t pixelsSize = size - dataOffset;
-	if (format >= FORMAT_DXT1 && format <= FORMAT_DXT5)
-		return decodeBlocks(pixels, pixelsSize, out);
-	if (format == FORMAT_RGB || format == FORMAT_RGBA)
-		return decodeRgb(pixels, pixelsSize, bits, rMask, gMask, bMask, aMask,
-			pitchOrLinearSize, out);
-	return false;
+	uint32_t maxMipCount = 1;
+	for (uint32_t mw = width, mh = height; mw > 1 || mh > 1; )
+	{
+		mw = std::max(1u, mw / 2);
+		mh = std::max(1u, mh / 2);
+		++maxMipCount;
+	}
+	const uint32_t mipCount =
+		std::min(declaredMipCount ? declaredMipCount : 1u, maxMipCount);
+
+	size_t offset = dataOffset;
+	uint32_t mipWidth = width;
+	uint32_t mipHeight = height;
+	for (uint32_t level = 0; level < mipCount; ++level)
+	{
+		MipLevel mip;
+		mip.width = (int)mipWidth;
+		mip.height = (int)mipHeight;
+		mip.rgba.assign((size_t)mipWidth * mipHeight * 4, 0);
+
+		size_t levelSize = 0;
+		bool decoded = false;
+		if (format >= FORMAT_DXT1 && format <= FORMAT_DXT5)
+		{
+			const size_t blockBytes = format == FORMAT_DXT1 ? 8 : 16;
+			const size_t blocksX = (mipWidth + 3) / 4;
+			const size_t blocksY = (mipHeight + 3) / 4;
+			if (blocksX > std::numeric_limits<size_t>::max() / blocksY
+				|| blocksX * blocksY > std::numeric_limits<size_t>::max() / blockBytes)
+				return false;
+			levelSize = blocksX * blocksY * blockBytes;
+			if (offset > size || levelSize > size - offset)
+				return false;
+			decoded = decodeBlocks(data + offset, levelSize, format, mip);
+		}
+		else if (format == FORMAT_RGB || format == FORMAT_RGBA)
+		{
+			const size_t bytesPerPixel = bits / 8;
+			const size_t tightPitch = (size_t)mipWidth * bytesPerPixel;
+			size_t sourcePitch = (tightPitch + 3) & ~(size_t)3;
+			if (level == 0 && pitchOrLinearSize >= tightPitch)
+				sourcePitch = pitchOrLinearSize;
+			if (sourcePitch > std::numeric_limits<size_t>::max() / mipHeight)
+				return false;
+			levelSize = sourcePitch * mipHeight;
+			if (offset > size || levelSize > size - offset)
+				return false;
+			decoded = decodeRgb(data + offset, levelSize, bits,
+				rMask, gMask, bMask, aMask, sourcePitch, mip);
+		}
+		if (!decoded)
+			return false;
+
+		out.mips.push_back(mip);
+		offset += levelSize;
+		mipWidth = std::max(1u, mipWidth / 2);
+		mipHeight = std::max(1u, mipHeight / 2);
+	}
+	return !out.mips.empty();
 }
 
 const char *formatName(Format format)

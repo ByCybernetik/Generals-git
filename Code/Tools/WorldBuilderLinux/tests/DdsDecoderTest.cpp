@@ -40,9 +40,12 @@ static std::vector<unsigned char> compressedDds(const char *code, const unsigned
 static bool pixelIs(const DdsDecoder::Image &image, int x, int y,
 	unsigned r, unsigned g, unsigned b, unsigned a)
 {
+	if (image.mips.empty())
+		return false;
+	const DdsDecoder::MipLevel &mip = image.mips[0];
 	const size_t p = ((size_t)y * image.width + x) * 4;
-	return image.rgba[p] == r && image.rgba[p + 1] == g
-		&& image.rgba[p + 2] == b && image.rgba[p + 3] == a;
+	return mip.rgba[p] == r && mip.rgba[p + 1] == g
+		&& mip.rgba[p + 2] == b && mip.rgba[p + 3] == a;
 }
 
 static bool testDxt1()
@@ -136,12 +139,38 @@ static bool testRejectsTruncatedDxt()
 	return !DdsDecoder::decode(dds.data(), dds.size(), image);
 }
 
+static bool testDxtMipChain()
+{
+	const unsigned char red[8] = { 0x00, 0xf8, 0xe0, 0x07, 0, 0, 0, 0 };
+	const unsigned char green[8] = { 0xe0, 0x07, 0x00, 0xf8, 0, 0, 0, 0 };
+	std::vector<unsigned char> data(128 + 4 * 8 + 8, 0);
+	putU32(data, 0, fourcc('D', 'D', 'S', ' '));
+	putU32(data, 4, 124);
+	putU32(data, 12, 8);
+	putU32(data, 16, 8);
+	putU32(data, 28, 2);
+	putU32(data, 76, 32);
+	putU32(data, 80, 4);
+	putU32(data, 84, fourcc('D', 'X', 'T', '1'));
+	for (int i = 0; i < 4; ++i)
+		memcpy(&data[128 + i * 8], red, 8);
+	memcpy(&data[128 + 32], green, 8);
+
+	DdsDecoder::Image image;
+	return DdsDecoder::decode(data.data(), data.size(), image)
+		&& image.mips.size() == 2
+		&& image.mips[0].width == 8 && image.mips[0].height == 8
+		&& image.mips[1].width == 4 && image.mips[1].height == 4
+		&& image.mips[0].rgba[0] == 255 && image.mips[0].rgba[1] == 0
+		&& image.mips[1].rgba[0] == 0 && image.mips[1].rgba[1] == 255;
+}
+
 } // namespace
 
 int main()
 {
 	if (!testDxt1() || !testDxt3() || !testDxt5() || !testBgra()
-		|| !testPaddedRgb24() || !testRejectsTruncatedDxt())
+		|| !testPaddedRgb24() || !testRejectsTruncatedDxt() || !testDxtMipChain())
 	{
 		fprintf(stderr, "DDS decoder test failed\n");
 		return 1;
