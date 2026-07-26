@@ -44,23 +44,28 @@ void waterShadeColors(float &outR, float &outG, float &outB, float &outA)
 		&& TheGlobalData->m_timeOfDay < TIME_OF_DAY_COUNT)
 		tod = TheGlobalData->m_timeOfDay;
 
-	UnsignedInt waterDiffuse = 0xffb9b9b9;
 	const RGBAColorInt *waterColor = &WaterSettings[tod].m_waterDiffuseColor;
-	/* EditorApp may not initialize every TOD slot. An all-zero/zero-alpha
-	 * entry made the entire water mesh invisible after switching from the
-	 * previous hardcoded afternoon slot. */
 	if (waterColor->alpha == 0)
 		waterColor = &WaterSettings[TIME_OF_DAY_AFTERNOON].m_waterDiffuseColor;
-	if (waterColor->alpha)
+
+	/* Some retail Water.ini diffuse entries are deliberately black because
+	 * the original pixel shader adds sparkle/noise stages. Prefer the
+	 * transparent-water tint when available; otherwise use WB's neutral tint
+	 * so the reduced two-texture Vulkan shader never produces black water. */
+	const RGBAColorInt *tint = waterColor;
+	if (tint->red == 0 && tint->green == 0 && tint->blue == 0)
 	{
-		const RGBAColorInt &c = *waterColor;
-		waterDiffuse = (c.alpha << 24) | (c.red << 16) | (c.green << 8) | c.blue;
+		const RGBAColorInt *transparent = &WaterSettings[tod].m_transparentWaterDiffuse;
+		if (transparent->red || transparent->green || transparent->blue)
+			tint = transparent;
+		else
+			tint = NULL;
 	}
 
-	const float waterShadeR = (waterDiffuse & 0xff) / 255.f;
-	const float waterShadeG = ((waterDiffuse >> 8) & 0xff) / 255.f;
-	const float waterShadeB = ((waterDiffuse >> 16) & 0xff) / 255.f;
-	outA = ((waterDiffuse >> 24) & 0xff) / 255.f;
+	const float waterShadeR = tint ? tint->red / 255.f : 0.46f;
+	const float waterShadeG = tint ? tint->green / 255.f : 0.58f;
+	const float waterShadeB = tint ? tint->blue / 255.f : 0.68f;
+	outA = waterColor->alpha ? waterColor->alpha / 255.f : 0.72f;
 
 	outR = std::min(1.f, shadeR * waterShadeR);
 	outG = std::min(1.f, shadeG * waterShadeG);
