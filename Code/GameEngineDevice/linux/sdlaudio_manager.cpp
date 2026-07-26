@@ -28,6 +28,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/opt.h>
+#include <libavutil/channel_layout.h>
 #include <libswresample/swresample.h>
 }
 
@@ -226,22 +227,51 @@ static AVSampleFormat audio_resolve_sample_fmt(const AVCodecParameters *params,
 	return AV_SAMPLE_FMT_FLTP;
 }
 
+static int audio_resolve_channel_count(const AVCodecParameters *params,
+	const AVCodecContext *ctx, const AVFrame *frame)
+{
+	if (frame && frame->ch_layout.nb_channels > 0)
+		return frame->ch_layout.nb_channels;
+	if (ctx && ctx->ch_layout.nb_channels > 0)
+		return ctx->ch_layout.nb_channels;
+	if (params && params->ch_layout.nb_channels > 0)
+		return params->ch_layout.nb_channels;
+	if (ctx && ctx->channels > 0)
+		return ctx->channels;
+	if (params && params->channels > 0)
+		return params->channels;
+	return 0;
+}
+
+static Bool audio_layout_usable_for_swr(const AVChannelLayout *layout)
+{
+	if (!layout || layout->nb_channels <= 0)
+		return false;
+	if (layout->order == AV_CHANNEL_ORDER_NATIVE || layout->order == AV_CHANNEL_ORDER_CUSTOM)
+		return av_channel_layout_check(layout) != 0;
+	return false;
+}
+
 static void audio_resolve_in_chlayout(AVChannelLayout *out,
 	const AVCodecParameters *params, const AVCodecContext *ctx, const AVFrame *frame)
 {
-	if (frame && frame->ch_layout.nb_channels > 0) {
-		av_channel_layout_copy(out, &frame->ch_layout);
+	const AVChannelLayout *src = NULL;
+	if (frame && audio_layout_usable_for_swr(&frame->ch_layout))
+		src = &frame->ch_layout;
+	else if (ctx && audio_layout_usable_for_swr(&ctx->ch_layout))
+		src = &ctx->ch_layout;
+	else if (params && audio_layout_usable_for_swr(&params->ch_layout))
+		src = &params->ch_layout;
+
+	if (src) {
+		av_channel_layout_copy(out, src);
 		return;
 	}
-	if (ctx && ctx->ch_layout.nb_channels > 0) {
-		av_channel_layout_copy(out, &ctx->ch_layout);
-		return;
-	}
-	if (params && params->ch_layout.nb_channels > 0) {
-		av_channel_layout_copy(out, &params->ch_layout);
-		return;
-	}
-	av_channel_layout_default(out, 2);
+
+	int ch = audio_resolve_channel_count(params, ctx, frame);
+	if (ch <= 0)
+		ch = 2;
+	av_channel_layout_default(out, ch);
 }
 
 static SwrContext *audio_create_swr(const AVCodecParameters *params,
@@ -252,7 +282,11 @@ static SwrContext *audio_create_swr(const AVCodecParameters *params,
 	AVChannelLayout outLayout;
 	audio_resolve_in_chlayout(&inLayout, params, codecCtx, frame);
 
-	const int inChannels = inLayout.nb_channels > 0 ? (int)inLayout.nb_channels : 2;
+	const int inChannels = audio_resolve_channel_count(params, codecCtx, frame);
+	if (inChannels <= 0) {
+		av_channel_layout_uninit(&inLayout);
+		return NULL;
+	}
 	const int outCh = outChannels > 0 ? outChannels : inChannels;
 	av_channel_layout_default(&outLayout, outCh);
 
@@ -2239,14 +2273,12 @@ Bool SDLAudioManager::loadAndDecodeAudio(const AsciiString& filename,
 	}
 
 	outSampleRate = audio_resolve_sample_rate(params, codecCtx, NULL);
-	outChannels = codecCtx->ch_layout.nb_channels;
+	outChannels = audio_resolve_channel_count(params, codecCtx, NULL);
 	if (outChannels <= 0)
-		outChannels = params->ch_layout.nb_channels;
-	if (outChannels <= 0)
-		outChannels = 1;
+		outChannels = 2;
 
 	SwrContext *swr = NULL;
-	if (outSampleRate > 0)
+	if (outSampleRate > 0 && outChannels > 0)
 		swr = audio_create_swr(params, codecCtx, NULL, codec, outSampleRate, outChannels);
 
 	AVFrame *frame = av_frame_alloc();
@@ -2442,7 +2474,8 @@ Bool SDLAudioManager::openStreamForMusic(AudioEventRTS *event)
 	}
 
 	SwrContext *swr = NULL;
-	if (audio_resolve_sample_rate(params, codecCtx, NULL) > 0) {
+	if (audio_resolve_sample_rate(params, codecCtx, NULL) > 0
+		&& audio_resolve_channel_count(params, codecCtx, NULL) > 0) {
 		swr = audio_create_swr(params, codecCtx, NULL, codec,
 			m_targetSampleRate, m_targetChannels);
 	}
